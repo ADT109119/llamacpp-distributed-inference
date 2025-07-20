@@ -238,8 +238,84 @@ body.dark-mode .node-count {
 }
 
 /* 節點卡片 */
+.local-ips-section,
+.discovered-nodes-section {
+    margin-bottom: 25px;
+}
+
+.local-ips-section h4,
+.discovered-nodes-section h4 {
+    color: #1a1a1a;
+    font-size: 0.95em;
+    font-weight: 600;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.local-ips-section h4 i,
+.discovered-nodes-section h4 i {
+    margin-right: 8px;
+    width: 16px;
+    text-align: center;
+}
+
+.local-ips-container,
 .nodes-container {
-    min-height: 200px;
+    min-height: 120px;
+}
+
+.local-ip-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 15px;
+    margin-bottom: 8px;
+    background: #f0f8ff;
+    border: 1px solid #b0d4f1;
+    transition: all 0.2s;
+}
+
+.local-ip-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.local-ip-address {
+    font-family: 'Fira Code', monospace;
+    font-weight: 500;
+    color: #1a1a1a;
+    font-size: 0.9em;
+}
+
+.local-ip-interface {
+    background: #1e40af;
+    color: #ffffff;
+    padding: 2px 8px;
+    font-size: 0.7em;
+    font-weight: 600;
+}
+
+/* 深色模式本機IP */
+body.dark-mode .local-ips-section h4,
+body.dark-mode .discovered-nodes-section h4 {
+    color: #C0CAF5;
+    border-bottom: 1px solid #414868;
+}
+
+body.dark-mode .local-ip-item {
+    background: #1e293b;
+    border: 1px solid #475569;
+}
+
+body.dark-mode .local-ip-address {
+    color: #C0CAF5;
+}
+
+body.dark-mode .local-ip-interface {
+    background: #7AA2F7;
+    color: #1A1B26;
 }
 
 .node-item {
@@ -293,6 +369,26 @@ body.dark-mode .node-count {
     display: flex;
     align-items: center;
     gap: 10px;
+}
+
+.remove-node-btn {
+    background: none;
+    border: 1px solid #ef4444;
+    color: #ef4444;
+    padding: 6px 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.8em;
+}
+
+.remove-node-btn:hover {
+    background: #ef4444;
+    color: #ffffff;
+}
+
+.remove-node-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .node-toggle {
@@ -360,6 +456,16 @@ body.dark-mode .node-toggle.active {
 
 body.dark-mode .loading {
     color: #A9B1D6;
+}
+
+body.dark-mode .remove-node-btn {
+    border-color: #F7768E;
+    color: #F7768E;
+}
+
+body.dark-mode .remove-node-btn:hover {
+    background: #F7768E;
+    color: #1A1B26;
 }
 
 /* 控制面板卡片 */

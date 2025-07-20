@@ -10,6 +10,7 @@ const elements = {
     apiStatus: document.getElementById('api-status'),
     apiUrl: document.getElementById('api-url'),
     nodeCount: document.getElementById('node-count'),
+    localIpsContainer: document.getElementById('local-ips-container'),
     nodesContainer: document.getElementById('nodes-container'),
     modelSelect: document.getElementById('model-select'),
     gpuLayers: document.getElementById('gpu-layers'),
@@ -17,11 +18,17 @@ const elements = {
     mainActionBtn: document.getElementById('main-action-btn'),
     themeToggle: document.getElementById('theme-toggle'),
     settingsBtn: document.getElementById('settings-btn'),
+    addNodeBtn: document.getElementById('add-node-btn'),
     apiKeyModal: document.getElementById('api-key-modal'),
     apiKeyInput: document.getElementById('api-key-input'),
     saveApiKeyBtn: document.getElementById('save-api-key'),
     cancelApiKeyBtn: document.getElementById('cancel-api-key'),
     closeModal: document.querySelector('.close'),
+    addNodeModal: document.getElementById('add-node-modal'),
+    nodeIpInput: document.getElementById('node-ip-input'),
+    addNodeConfirm: document.getElementById('add-node-confirm'),
+    addNodeCancel: document.getElementById('add-node-cancel'),
+    closeAddNodeModal: document.querySelector('.close-add-node'),
     systemLog: document.getElementById('system-log'),
     rpcLog: document.getElementById('rpc-log'),
     apiLog: document.getElementById('api-log'),
@@ -40,6 +47,9 @@ async function initApp() {
     
     // 載入已儲存的 API Key
     await loadApiKey();
+    
+    // 載入本機IP地址
+    await loadLocalIps();
     
     // 載入已發現的節點
     await loadDiscoveredNodes();
@@ -85,6 +95,27 @@ async function loadApiKey() {
     }
 }
 
+// 載入本機IP地址
+async function loadLocalIps() {
+    try {
+        console.log('Loading local IPs...');
+        const localIps = await window.electronAPI.getLocalIps();
+        console.log('Local IPs loaded:', localIps);
+        
+        if (localIps && localIps.length > 0) {
+            updateLocalIpsDisplay(localIps);
+            logMessage('系統', `載入 ${localIps.length} 個網路介面`, 'success');
+        } else {
+            elements.localIpsContainer.innerHTML = '<p class="loading">未找到網路介面</p>';
+            logMessage('系統', '未找到任何網路介面', 'error');
+        }
+    } catch (error) {
+        console.error('Error loading local IPs:', error);
+        elements.localIpsContainer.innerHTML = '<p class="loading">載入網路介面失敗</p>';
+        logMessage('系統', `載入本機IP失敗: ${error.message}`, 'error');
+    }
+}
+
 // 載入已發現的節點
 async function loadDiscoveredNodes() {
     try {
@@ -97,6 +128,53 @@ async function loadDiscoveredNodes() {
     } catch (error) {
         logMessage('系統', `載入節點列表失敗: ${error.message}`, 'error');
     }
+}
+
+// 更新本機IP顯示
+function updateLocalIpsDisplay(localIps) {
+    console.log('Updating local IPs display with:', localIps);
+    
+    if (!localIps || localIps.length === 0) {
+        elements.localIpsContainer.innerHTML = '<p class="loading">無法獲取本機IP地址</p>';
+        return;
+    }
+    
+    elements.localIpsContainer.innerHTML = '';
+    
+    localIps.forEach(ipInfo => {
+        const ipItem = document.createElement('div');
+        ipItem.className = 'local-ip-item';
+        
+        // 處理介面名稱顯示
+        let interfaceLabel;
+        if (ipInfo.internal) {
+            interfaceLabel = '本機回環';
+        } else {
+            // 簡化介面名稱顯示
+            const name = ipInfo.interface || 'Unknown';
+            if (name.toLowerCase().includes('wi-fi') || name.toLowerCase().includes('wireless')) {
+                interfaceLabel = 'Wi-Fi';
+            } else if (name.toLowerCase().includes('ethernet') || name.toLowerCase().includes('乙太網路')) {
+                interfaceLabel = '乙太網路';
+            } else {
+                interfaceLabel = name.length > 15 ? name.substring(0, 15) + '...' : name;
+            }
+        }
+        
+        const iconClass = ipInfo.internal ? 'fas fa-home' : 'fas fa-network-wired';
+        
+        ipItem.innerHTML = `
+            <div class="local-ip-info">
+                <i class="${iconClass}"></i>
+                <span class="local-ip-address">${ipInfo.address}</span>
+                <span class="local-ip-interface">${interfaceLabel}</span>
+            </div>
+        `;
+        
+        elements.localIpsContainer.appendChild(ipItem);
+    });
+    
+    console.log('Local IPs display updated successfully');
 }
 
 // 更新節點顯示
@@ -116,24 +194,35 @@ function updateNodesDisplay(nodes) {
         nodeItem.className = 'node-item';
         
         const isLocalhost = nodeIp === '127.0.0.1' || nodeIp.includes('localhost');
-        const nodeId = `node-${nodeIp.replace(/\./g, '-')}`;
         
         nodeItem.innerHTML = `
             <div class="node-info">
-                <i class="node-icon fas fa-desktop"></i>
+                <i class="node-icon fas fa-server"></i>
                 <div class="node-details">
                     <span class="node-ip">${nodeIp}</span>
                     ${isLocalhost ? '<span class="node-label">本機</span>' : ''}
                 </div>
             </div>
             <div class="node-controls">
+                <button class="check-connection-btn" data-node="${nodeIp}" title="檢查連接">
+                    <i class="fas fa-wifi"></i>
+                </button>
                 <div class="node-toggle ${isLocalhost ? 'active' : ''}" data-node="${nodeIp}">
                 </div>
+                <button class="remove-node-btn" data-node="${nodeIp}" title="移除節點">
+                    <i class="fas fa-times"></i>
+                </button>
             </div>
         `;
         
         const toggle = nodeItem.querySelector('.node-toggle');
         toggle.addEventListener('click', () => toggleNode(nodeIp, toggle));
+        
+        const checkBtn = nodeItem.querySelector('.check-connection-btn');
+        checkBtn.addEventListener('click', () => checkNodeConnection(nodeIp));
+        
+        const removeBtn = nodeItem.querySelector('.remove-node-btn');
+        removeBtn.addEventListener('click', () => removeNode(nodeIp));
         
         elements.nodesContainer.appendChild(nodeItem);
     });
@@ -314,6 +403,88 @@ function initTheme() {
     }
 }
 
+// 檢查節點連接
+async function checkNodeConnection(nodeIp) {
+    try {
+        logMessage('系統', `正在檢查節點 ${nodeIp} 的連接...`, 'info');
+        const result = await window.electronAPI.checkNodeConnection(nodeIp);
+        
+        if (result.success) {
+            if (result.reachable) {
+                logMessage('系統', result.message, 'success');
+            } else {
+                logMessage('系統', result.message, 'error');
+            }
+            return result.reachable;
+        } else {
+            logMessage('系統', result.message, 'error');
+            return false;
+        }
+    } catch (error) {
+        logMessage('系統', `檢查連接失敗: ${error.message}`, 'error');
+        return false;
+    }
+}
+
+// 手動添加節點
+async function addManualNode() {
+    const nodeIp = elements.nodeIpInput.value.trim();
+    
+    if (!nodeIp) {
+        alert('請輸入節點IP地址');
+        return;
+    }
+    
+    try {
+        // 顯示載入狀態
+        elements.addNodeConfirm.disabled = true;
+        elements.addNodeConfirm.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 檢查中...';
+        
+        const result = await window.electronAPI.addManualNode(nodeIp);
+        
+        if (result.success) {
+            if (result.reachable) {
+                logMessage('系統', result.message, 'success');
+            } else {
+                logMessage('系統', result.message, 'error');
+            }
+            elements.addNodeModal.style.display = 'none';
+            elements.nodeIpInput.value = '';
+        } else {
+            logMessage('系統', result.message, 'error');
+        }
+    } catch (error) {
+        logMessage('系統', `添加節點失敗: ${error.message}`, 'error');
+    } finally {
+        // 恢復按鈕狀態
+        elements.addNodeConfirm.disabled = false;
+        elements.addNodeConfirm.innerHTML = '<i class="fas fa-plus"></i> 添加';
+    }
+}
+
+// 移除節點
+async function removeNode(nodeIp) {
+    if (nodeIp === '127.0.0.1') {
+        logMessage('系統', '無法移除本機節點', 'error');
+        return;
+    }
+    
+    const confirm = window.confirm(`確定要移除節點 ${nodeIp} 嗎？`);
+    if (!confirm) return;
+    
+    try {
+        const result = await window.electronAPI.removeNode(nodeIp);
+        
+        if (result.success) {
+            logMessage('系統', result.message, 'success');
+        } else {
+            logMessage('系統', result.message, 'error');
+        }
+    } catch (error) {
+        logMessage('系統', `移除節點失敗: ${error.message}`, 'error');
+    }
+}
+
 // 儲存 API Key
 async function saveApiKey() {
     try {
@@ -372,10 +543,15 @@ function setupEventListeners() {
         elements.apiKeyModal.style.display = 'block';
     });
     
+    // 手動添加節點按鈕
+    elements.addNodeBtn.addEventListener('click', () => {
+        elements.addNodeModal.style.display = 'block';
+    });
+    
     // GPU 控制同步
     syncGpuControls();
     
-    // 模態框事件
+    // API Key 模態框事件
     elements.saveApiKeyBtn.addEventListener('click', saveApiKey);
     elements.cancelApiKeyBtn.addEventListener('click', () => {
         elements.apiKeyModal.style.display = 'none';
@@ -384,10 +560,32 @@ function setupEventListeners() {
         elements.apiKeyModal.style.display = 'none';
     });
     
+    // 添加節點模態框事件
+    elements.addNodeConfirm.addEventListener('click', addManualNode);
+    elements.addNodeCancel.addEventListener('click', () => {
+        elements.addNodeModal.style.display = 'none';
+        elements.nodeIpInput.value = '';
+    });
+    elements.closeAddNodeModal.addEventListener('click', () => {
+        elements.addNodeModal.style.display = 'none';
+        elements.nodeIpInput.value = '';
+    });
+    
+    // Enter 鍵添加節點
+    elements.nodeIpInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            addManualNode();
+        }
+    });
+    
     // 點擊模態框外部關閉
     window.addEventListener('click', (event) => {
         if (event.target === elements.apiKeyModal) {
             elements.apiKeyModal.style.display = 'none';
+        }
+        if (event.target === elements.addNodeModal) {
+            elements.addNodeModal.style.display = 'none';
+            elements.nodeIpInput.value = '';
         }
     });
     

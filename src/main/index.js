@@ -304,6 +304,161 @@ ipcMain.handle('get-discovered-nodes', async () => {
   return Array.from(discoveredNodes);
 });
 
+ipcMain.handle('get-local-ips', async () => {
+  try {
+    const os = require('os');
+    const interfaces = os.networkInterfaces();
+    const localIps = [];
+    
+    console.log('Network interfaces:', interfaces);
+    
+    Object.keys(interfaces).forEach(name => {
+      const interfaceList = interfaces[name];
+      if (interfaceList) {
+        interfaceList.forEach(iface => {
+          if (iface.family === 'IPv4') {
+            localIps.push({
+              address: iface.address,
+              interface: name,
+              internal: iface.internal
+            });
+            console.log(`Found IPv4 interface: ${name} - ${iface.address} (internal: ${iface.internal})`);
+          }
+        });
+      }
+    });
+    
+    console.log('Local IPs found:', localIps);
+    return localIps;
+  } catch (error) {
+    console.error('Error getting local IPs:', error);
+    // 返回基本的本機地址作為後備
+    return [
+      {
+        address: '127.0.0.1',
+        interface: 'Loopback',
+        internal: true
+      }
+    ];
+  }
+});
+
+// 檢查節點連接性
+async function checkNodeConnection(nodeIp, port = 50052) {
+  return new Promise((resolve) => {
+    const net = require('net');
+    const socket = new net.Socket();
+    
+    const timeout = setTimeout(() => {
+      socket.destroy();
+      resolve(false);
+    }, 5000); // 5秒超時
+    
+    socket.connect(port, nodeIp, () => {
+      clearTimeout(timeout);
+      socket.destroy();
+      resolve(true);
+    });
+    
+    socket.on('error', () => {
+      clearTimeout(timeout);
+      resolve(false);
+    });
+  });
+}
+
+ipcMain.handle('check-node-connection', async (event, nodeIp) => {
+  try {
+    console.log(`Checking connection to ${nodeIp}:50052...`);
+    const isConnectable = await checkNodeConnection(nodeIp);
+    
+    if (isConnectable) {
+      console.log(`Node ${nodeIp} is reachable`);
+      return { 
+        success: true, 
+        reachable: true, 
+        message: `節點 ${nodeIp} 連接成功，RPC 服務正在運行` 
+      };
+    } else {
+      console.log(`Node ${nodeIp} is not reachable`);
+      return { 
+        success: true, 
+        reachable: false, 
+        message: `無法連接到節點 ${nodeIp}:50052，請確認目標設備已啟動此程式` 
+      };
+    }
+  } catch (error) {
+    console.error('Error checking node connection:', error);
+    return { 
+      success: false, 
+      reachable: false, 
+      message: `檢查連接時發生錯誤: ${error.message}` 
+    };
+  }
+});
+
+ipcMain.handle('add-manual-node', async (event, nodeIp) => {
+  try {
+    // 驗證 IP 格式
+    const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+    if (!ipRegex.test(nodeIp)) {
+      return { success: false, message: '無效的 IP 地址格式' };
+    }
+    
+    // 檢查是否已存在
+    if (discoveredNodes.has(nodeIp)) {
+      return { success: false, message: '該節點已存在' };
+    }
+    
+    // 檢查節點連接性
+    console.log(`Checking connectivity for node: ${nodeIp}`);
+    const connectionResult = await checkNodeConnection(nodeIp);
+    
+    // 無論是否可連接都添加節點，但返回連接狀態
+    discoveredNodes.add(nodeIp);
+    console.log('Manually added node:', nodeIp, 'Reachable:', connectionResult);
+    
+    // 通知前端更新
+    mainWindow?.webContents.send('node-update', Array.from(discoveredNodes));
+    
+    if (connectionResult) {
+      return { 
+        success: true, 
+        reachable: true,
+        message: `節點 ${nodeIp} 已添加並驗證連接成功` 
+      };
+    } else {
+      return { 
+        success: true, 
+        reachable: false,
+        message: `節點 ${nodeIp} 已添加，但無法連接到 RPC 服務 (端口 50052)。請確認目標設備已啟動此程式。` 
+      };
+    }
+  } catch (error) {
+    console.error('Error adding manual node:', error);
+    return { success: false, message: error.message };
+  }
+});
+
+ipcMain.handle('remove-node', async (event, nodeIp) => {
+  try {
+    if (discoveredNodes.has(nodeIp)) {
+      discoveredNodes.delete(nodeIp);
+      console.log('Removed node:', nodeIp);
+      
+      // 通知前端更新
+      mainWindow?.webContents.send('node-update', Array.from(discoveredNodes));
+      
+      return { success: true, message: `節點 ${nodeIp} 已移除` };
+    } else {
+      return { success: false, message: '節點不存在' };
+    }
+  } catch (error) {
+    console.error('Error removing node:', error);
+    return { success: false, message: error.message };
+  }
+});
+
 // 應用程式事件
 app.whenReady().then(() => {
   createWindow();

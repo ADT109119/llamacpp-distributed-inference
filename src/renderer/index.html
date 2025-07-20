@@ -62,10 +62,25 @@
             <div class="card nodes-card">
                 <div class="card-header">
                     <h2><i class="fas fa-network-wired"></i> 網路節點</h2>
+                    <button id="add-node-btn" class="header-btn" title="手動添加節點">
+                        <i class="fas fa-plus"></i>
+                    </button>
                 </div>
                 <div class="card-content">
-                    <div id="nodes-container" class="nodes-container">
-                        <p class="loading">🔍 正在搜尋網路節點...</p>
+                    <!-- 本機IP顯示 -->
+                    <div class="local-ips-section">
+                        <h4><i class="fas fa-desktop"></i> 本機網路介面</h4>
+                        <div id="local-ips-container" class="local-ips-container">
+                            <p class="loading"><i class="fas fa-spinner fa-spin"></i> 載入中...</p>
+                        </div>
+                    </div>
+                    
+                    <!-- 發現的節點 -->
+                    <div class="discovered-nodes-section">
+                        <h4><i class="fas fa-search"></i> 發現的節點</h4>
+                        <div id="nodes-container" class="nodes-container">
+                            <p class="loading"><i class="fas fa-search"></i> 正在搜尋網路節點...</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -134,6 +149,25 @@
             <div class="modal-footer">
                 <button id="save-api-key" class="btn btn-primary"><i class="fas fa-save"></i> 儲存</button>
                 <button id="cancel-api-key" class="btn btn-secondary">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 手動添加節點模態框 -->
+    <div id="add-node-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-plus"></i> 手動添加節點</h3>
+                <button class="close-add-node"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <label for="node-ip-input">節點 IP 地址:</label>
+                <input type="text" id="node-ip-input" placeholder="例如: 192.168.1.100">
+                <p class="help-text">請輸入要添加的節點 IP 地址。確保該節點已啟動 RPC 伺服器 (端口 50052)。</p>
+            </div>
+            <div class="modal-footer">
+                <button id="add-node-confirm" class="btn btn-primary"><i class="fas fa-plus"></i> 添加</button>
+                <button id="add-node-cancel" class="btn btn-secondary">取消</button>
             </div>
         </div>
     </div>

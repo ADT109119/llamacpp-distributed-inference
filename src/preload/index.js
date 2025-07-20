@@ -15,6 +15,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // 節點發現
   getDiscoveredNodes: () => ipcRenderer.invoke('get-discovered-nodes'),
+  getLocalIps: () => ipcRenderer.invoke('get-local-ips'),
+  addManualNode: (nodeIp) => ipcRenderer.invoke('add-manual-node', nodeIp),
+  removeNode: (nodeIp) => ipcRenderer.invoke('remove-node', nodeIp),
+  checkNodeConnection: (nodeIp) => ipcRenderer.invoke('check-node-connection', nodeIp),
   
   // 事件監聽
   onNodeUpdate: (callback) => ipcRenderer.on('node-update', callback),

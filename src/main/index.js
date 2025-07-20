@@ -20,8 +20,10 @@ const store = new Store();
 // 創建主視窗
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1000,
-    height: 700,
+    width: 1400,
+    height: 800,
+    minWidth: 1200,
+    minHeight: 700,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -50,7 +52,7 @@ function startRpcServer() {
   
   // 處理打包後路徑
   const basePath = app.isPackaged 
-    ? path.join(process.resourcesPath, 'app')
+    ? process.resourcesPath
     : path.join(__dirname, '../..');
 
   const rpcServerPath = path.join(basePath, 'bin', osMap[platform], binaryName);
@@ -87,45 +89,103 @@ function startRpcServer() {
 
 // 啟動 mDNS 服務發現
 function startMdnsDiscovery() {
-  bonjour = new Bonjour();
-  const serviceType = 'llm-cluster';
+  try {
+    bonjour = new Bonjour();
+    const serviceType = 'llm-cluster';
+    const serviceName = 'LLMNode-' + require('os').hostname();
 
-  // 發布本機服務
-  bonjour.publish({ 
-    name: 'LLMNode-' + require('os').hostname(), 
-    type: serviceType, 
-    port: 50052 
-  });
+    console.log('Starting mDNS discovery...');
+    console.log('Service name:', serviceName);
+    console.log('Service type:', serviceType);
 
-  // 瀏覽網路上的其他服務
-  const browser = bonjour.find({ type: serviceType });
-  
-  browser.on('up', (service) => {
-    service.addresses.forEach(addr => {
-      if (!discoveredNodes.has(addr)) {
-        discoveredNodes.add(addr);
-        console.log('Discovered node:', addr);
-        mainWindow?.webContents.send('node-update', Array.from(discoveredNodes));
+    // 發布本機服務
+    const service = bonjour.publish({ 
+      name: serviceName, 
+      type: serviceType, 
+      port: 50052,
+      txt: {
+        version: '1.0.0',
+        platform: process.platform
       }
     });
-  });
-  
-  browser.on('down', (service) => {
-    service.addresses.forEach(addr => {
-      if (discoveredNodes.has(addr)) {
-        discoveredNodes.delete(addr);
-        console.log('Node went down:', addr);
-        mainWindow?.webContents.send('node-update', Array.from(discoveredNodes));
+
+    service.on('up', () => {
+      console.log('mDNS service published successfully');
+    });
+
+    service.on('error', (err) => {
+      console.error('mDNS service publish error:', err);
+    });
+
+    // 瀏覽網路上的其他服務
+    const browser = bonjour.find({ type: serviceType }, (service) => {
+      console.log('Found service via callback:', service.name, service.addresses);
+    });
+    
+    browser.on('up', (service) => {
+      console.log('Service up:', service.name, service.addresses);
+      if (service.addresses && service.addresses.length > 0) {
+        service.addresses.forEach(addr => {
+          // 過濾掉無效的地址
+          if (addr && addr !== '0.0.0.0' && !addr.startsWith('169.254')) {
+            if (!discoveredNodes.has(addr)) {
+              discoveredNodes.add(addr);
+              console.log('Added discovered node:', addr);
+              mainWindow?.webContents.send('node-update', Array.from(discoveredNodes));
+            }
+          }
+        });
       }
     });
-  });
+    
+    browser.on('down', (service) => {
+      console.log('Service down:', service.name, service.addresses);
+      if (service.addresses && service.addresses.length > 0) {
+        service.addresses.forEach(addr => {
+          if (discoveredNodes.has(addr)) {
+            discoveredNodes.delete(addr);
+            console.log('Removed node:', addr);
+            mainWindow?.webContents.send('node-update', Array.from(discoveredNodes));
+          }
+        });
+      }
+    });
+
+    // 添加本機地址到節點列表
+    const os = require('os');
+    const interfaces = os.networkInterfaces();
+    Object.keys(interfaces).forEach(name => {
+      interfaces[name].forEach(iface => {
+        if (iface.family === 'IPv4' && !iface.internal) {
+          discoveredNodes.add(iface.address);
+          console.log('Added local interface:', iface.address);
+        }
+      });
+    });
+
+    // 添加 localhost
+    discoveredNodes.add('127.0.0.1');
+    
+    // 發送初始節點列表
+    setTimeout(() => {
+      mainWindow?.webContents.send('node-update', Array.from(discoveredNodes));
+    }, 1000);
+
+  } catch (error) {
+    console.error('Failed to start mDNS discovery:', error);
+    // 如果 mDNS 失敗，至少添加本機地址
+    discoveredNodes.add('127.0.0.1');
+    setTimeout(() => {
+      mainWindow?.webContents.send('node-update', Array.from(discoveredNodes));
+    }, 1000);
+  }
 }
 
 // IPC 處理器
 ipcMain.handle('get-models', async () => {
   try {
     const basePath = app.isPackaged 
-      ? path.join(process.resourcesPath, 'app')
+      ? process.resourcesPath
       : path.join(__dirname, '../..');
     const modelsPath = path.join(basePath, 'models');
     
@@ -163,7 +223,7 @@ ipcMain.handle('start-api-server', async (event, options) => {
     const binaryName = platform === 'win32' ? 'llama-server.exe' : 'llama-server';
     
     const basePath = app.isPackaged 
-      ? path.join(process.resourcesPath, 'app')
+      ? process.resourcesPath
       : path.join(__dirname, '../..');
 
     const serverPath = path.join(basePath, 'bin', osMap[platform], binaryName);

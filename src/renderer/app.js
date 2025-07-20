@@ -48,6 +48,7 @@ async function initApp() {
     setupEventListeners();
     
     logMessage('系統', '應用程式初始化完成', 'success');
+    logMessage('系統', '正在啟動網路節點發現...', 'info');
 }
 
 // 載入模型列表
@@ -88,7 +89,11 @@ async function loadApiKey() {
 async function loadDiscoveredNodes() {
     try {
         const nodes = await window.electronAPI.getDiscoveredNodes();
+        console.log('Initial nodes loaded:', nodes);
         updateNodesDisplay(nodes);
+        if (nodes.length === 0) {
+            logMessage('系統', '尚未發現任何節點，請稍候...', 'info');
+        }
     } catch (error) {
         logMessage('系統', `載入節點列表失敗: ${error.message}`, 'error');
     }
@@ -147,7 +152,9 @@ function updateSelectedNodes() {
     const activeToggles = document.querySelectorAll('.node-toggle.active');
     selectedNodes = Array.from(activeToggles).map(toggle => toggle.dataset.node);
     updateNodeCount(selectedNodes.length, discoveredNodes.length);
-    logMessage('系統', `已選擇 ${selectedNodes.length} 個節點: ${selectedNodes.join(', ')}`, 'info');
+    if (selectedNodes.length > 0) {
+        logMessage('系統', `已選擇 ${selectedNodes.length} 個節點: ${selectedNodes.join(', ')}`, 'info');
+    }
 }
 
 // 更新節點計數顯示
@@ -403,8 +410,9 @@ function setupEventListeners() {
     
     // Electron IPC 事件監聽
     window.electronAPI.onNodeUpdate((event, nodes) => {
+        console.log('Received node update:', nodes);
         updateNodesDisplay(nodes);
-        logMessage('系統', `節點列表已更新，發現 ${nodes.length} 個節點`, 'info');
+        logMessage('系統', `節點列表已更新，發現 ${nodes.length} 個節點: ${nodes.join(', ')}`, 'info');
     });
     
     window.electronAPI.onRpcServerStatus((event, running) => {

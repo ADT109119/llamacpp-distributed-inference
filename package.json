@@ -11,8 +11,8 @@
     "pack": "electron-builder --dir"
   },
   "keywords": ["electron", "llm", "distributed", "inference"],
-  "author": "Your Name",
-  "license": "MIT",
+  "author": "The Walking Fish步行魚",
+  "license": "Apache 2.0",
   "devDependencies": {
     "electron": "^28.0.0",
     "electron-builder": "^24.9.1"
@@ -29,11 +29,17 @@
     },
     "files": [
       "src/**/*",
-      "node_modules/**/*"
+      "node_modules/**/*",
+      "models/",
+      "models/README.md",
+      "!models/*.gguf"
     ],
-    "extraResources": [
-      "bin/**/*",
-      "models/**/*"
+    "extraFiles": [
+      {
+        "from": "bin",
+        "to": "resources/bin",
+        "filter": ["**/*"]
+      }
     ],
     "win": {
       "target": "nsis"

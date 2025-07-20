@@ -21,6 +21,8 @@
 
 ## 安裝步驟
 
+### 開發環境
+
 1. **克隆專案**
    ```bash
    git clone <repository-url>
@@ -40,6 +42,27 @@
    - 確保 `bin/` 資料夾包含對應平台的執行檔
    - Windows: `rpc-server.exe`, `llama-server.exe`
    - Linux/macOS: `rpc-server`, `llama-server`
+
+### 生產環境（打包後）
+
+打包後的應用程式結構：
+```
+app/
+├── resources/
+│   ├── bin/               # llama.cpp 執行檔
+│   │   ├── windows/
+│   │   ├── linux/
+│   │   └── macos/
+│   └── app/
+│       ├── src/
+│       ├── models/        # 模型資料夾（僅包含 README.md）
+│       └── node_modules/
+```
+
+**重要說明**：
+- 打包時會自動排除 `.gguf` 檔案以減少安裝包大小
+- 用戶需要手動將模型檔案放入安裝後的 `models/` 資料夾
+- 應用程式會自動檢測並載入 `models/` 資料夾中的 `.gguf` 檔案
 
 ## 使用方法
 

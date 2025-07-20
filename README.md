@@ -22,14 +22,68 @@
 - 至少 8GB RAM（取決於模型大小）
 - 可選：NVIDIA GPU（用於 GPU 加速）
 
-## 安裝步驟
+## 🚀 快速開始
+
+### 方法一：下載預編譯版本（推薦）
+
+1. **下載應用程式**
+   - 前往本專案的 [Releases 頁面](../../releases)
+   - 下載對應您作業系統的預編譯版本
+   - Windows: `llamacpp-distributed-inference-win.zip`
+   - macOS: `llamacpp-distributed-inference-mac.zip` (尚無)
+   - Linux: `llamacpp-distributed-inference-linux.zip` (尚無)
+
+2. **解壓縮並啟動**
+   ```bash
+   # Windows
+   解壓縮後雙擊 ./分佈式 LLM 推理器.exe
+   ```
+
+3. **添加模型檔案**
+   - 將 `.gguf` 格式的模型檔案放入 `models/` 資料夾
+   - 可從 [Hugging Face](https://huggingface.co/models?library=gguf) 下載
+
+### 方法二：手動編譯版本
+
+1. **下載專案源碼**
+   ```bash
+   git clone <repository-url>
+   cd llamacpp-distributed-inference
+   ```
+
+2. **安裝依賴**
+   ```bash
+   npm install
+   ```
+
+3. **準備 llama.cpp 二進位檔案**
+   - 前往 [llama.cpp Releases](https://github.com/ggerganov/llama.cpp/releases)
+   - 下載對應平台的編譯版本
+   - 解壓縮並將以下檔案放入對應的 `bin/` 資料夾：
+     - Windows: `rpc-server.exe`, `llama-server.exe` → `bin/windows/`
+     - macOS: `rpc-server`, `llama-server` → `bin/macos/`
+     - Linux: `rpc-server`, `llama-server` → `bin/linux/`
+
+4. **準備模型檔案**
+   - 將 `.gguf` 格式的模型檔案放入 `models/` 資料夾
+
+5. **啟動應用程式**
+   ```bash
+   # Windows
+   start.bat
+   
+   # macOS/Linux
+   ./start.sh
+   ```
+
+## 安裝步驟（開發環境）
 
 ### 開發環境
 
 1. **克隆專案**
    ```bash
    git clone <repository-url>
-   cd distributed-llm-inference
+   cd llamacpp-distributed-inference
    ```
 
 2. **安裝依賴**
@@ -59,7 +113,7 @@ app/
 │   │   └── macos/
 │   └── app/
 │       ├── src/
-│       ├── models/        # 模型資料夾（僅包含 README.md）
+│       ├── models/        # 模型資料夾
 │       └── node_modules/
 ```
 
@@ -174,7 +228,9 @@ curl http://localhost:8080/v1/models
 - **5353**: mDNS 服務發現端口（建議）
 
 ### 🌐 **網路需求**
-- **同一區域網路**: 所有節點必須在相同網段
+- **可信內網**: **必須在完全可信的內部網路中運行**
+- **網路隔離**: **嚴禁連接到公共網路或不安全網路**
+- **同一網段**: 所有節點必須在相同的區域網路內
 - **mDNS 支援**: 大部分家用路由器預設支援
 - **穩定連接**: 建議使用有線網路以獲得最佳性能
 
@@ -183,6 +239,11 @@ curl http://localhost:8080/v1/models
 - **記憶體管理**: 確保每個節點有足夠 RAM
 - **網路頻寬**: 節點間通訊需要穩定頻寬
 - **負載平衡**: 合理分配計算任務到各節點
+
+### ⚠️ **效能限制**
+- **木桶效應**: 整體推論速度取決於節點中最慢的裝置
+- **瓶頸風險**: 如果有一個裝置特別慢，例如加入了一個僅有CPU沒有GPU的裝置，任務很可能會都卡在那個裝置上
+- **建議**: 使用性能相近的設備組成分散式網路，避免性能差異過大
 
 ## 故障排除
 
@@ -271,10 +332,15 @@ telnet 192.168.1.101 50052
 4. **負載測試**: 使用少量節點測試後再擴展
 
 #### **安全建議**
-1. **API Key**: 在生產環境中務必設定 API Key
-2. **網路隔離**: 在專用網段運行分散式推理
-3. **存取控制**: 限制 API 伺服器的存取來源
-4. **監控**: 定期檢查節點狀態和日誌
+> ⚠️ **重要提醒**: 以下建議僅能降低風險，但無法完全消除 RPC 通訊的安全隱患
+
+1. **網路隔離**: 
+   - **必須**: 在完全隔離的內網中運行
+   - **禁止**: 連接到公共網路或不可信網路
+2. **API Key**: 設定強密碼的 API Key 保護 HTTP 介面
+3. **防火牆**: 嚴格限制 50052 和 8080 端口的存取來源
+4. **監控**: 持續監控網路流量和節點狀態
+5. **定期檢查**: 確認所有參與節點都是可信設備
 
 #### **維護建議**
 1. **定期更新**: 保持應用程式和模型的最新版本
@@ -303,6 +369,34 @@ telnet 192.168.1.101 50052
 └── package.json
 ```
 
+## ⚠️ **重要警語與使用限制**
+
+### 🚨 **安全警告**
+- **RPC 通訊安全隱患**: 本專案的 RPC 通訊**未加密且缺乏身份驗證**，存在安全風險
+- **僅限可信網路**: **請僅在完全可信的網路環境中使用**（如家庭內網、隔離的實驗室網路）
+- **禁止公網使用**: **嚴禁在公共網路或不安全的網路環境中運行**，你的電腦很可能會被爆破
+
+### 🎯 **適用場景**
+- ✅ **個人使用**: 個人單機 VRAM 不足，但想跑大一點的模型，且確定只有個人使用，不會部署成服務
+- ✅ **個人學習和研究**: 在家庭網路中進行 LLM 實驗
+- ✅ **概念驗證 (PoC)**: 演示分佈式推理的基本概念
+- ✅ **教育用途**: 學習分佈式計算和 LLM 部署
+- ✅ **原型開發**: 快速驗證分佈式推理想法
+
+### ❌ **不適用場景**
+- ❌ **生產環境部署**: 缺乏企業級安全和穩定性保證
+- ❌ **商業用途**: 未經充分的安全審計和壓力測試
+- ❌ **公共服務**: 不適合對外提供服務
+
+### 🏭 **生產環境建議**
+如需在生產環境中部署 LLM 推理伺服器，建議使用更成熟的解決方案，以獲得更高的安全性與更好的推理效能：
+- **[vLLM](https://github.com/vllm-project/vllm)**: 高效能的 LLM 推理引擎
+- **[Text Generation Inference](https://github.com/huggingface/text-generation-inference)**: Hugging Face 的推理服務
+- **[TensorRT-LLM](https://github.com/NVIDIA/TensorRT-LLM)**: NVIDIA 的優化推理引擎
+- **[OpenLLM](https://github.com/bentoml/OpenLLM)**: 企業級 LLM 部署平台
+
+---
+
 ### 貢獻指南
 1. Fork 專案
 2. 創建功能分支
@@ -315,4 +409,15 @@ Apache 2.0 License
 
 ## 支援
 
-如有問題或建議，請提交 Issue 或聯繫開發團隊。
+如有問題或建議，請提交 Issue 或聯繫本人 2.jerry32262686@gmail.com。
+
+## ⚖️ 授權與免責聲明
+
+### 授權
+MIT License
+
+### 免責聲明
+- 本軟體僅供學習、研究和個人使用
+- 開發者不對因使用本軟體而導致的任何損失或安全問題承擔責任
+- 使用者需自行承擔網路安全風險
+- 在使用前請詳細閱讀並理解所有安全警告

@@ -327,6 +327,7 @@ body.dark-mode .local-ip-interface {
     background: #f8f8f8;
     border: 1px solid #d0d0d0;
     transition: all 0.2s;
+    position: relative;
 }
 
 .node-item:hover {
@@ -363,6 +364,27 @@ body.dark-mode .local-ip-interface {
     font-weight: 600;
     margin-top: 4px;
     width: fit-content;
+}
+
+.node-note {
+    background: #f59e0b;
+    color: #ffffff;
+    padding: 2px 8px;
+    font-size: 0.65em;
+    font-weight: 500;
+    margin-top: 4px;
+    width: fit-content;
+    border-radius: 3px;
+}
+
+.node-status {
+    background: #22c55e;
+    color: #ffffff;
+    padding: 6px 12px;
+    font-size: 0.8em;
+    font-weight: 600;
+    border-radius: 4px;
+    text-align: center;
 }
 
 .node-controls {
@@ -466,6 +488,16 @@ body.dark-mode .node-label {
     color: #1A1B26;
 }
 
+body.dark-mode .node-note {
+    background: #E0AF68;
+    color: #1A1B26;
+}
+
+body.dark-mode .node-status {
+    background: #9ECE6A;
+    color: #1A1B26;
+}
+
 body.dark-mode .node-toggle {
     background: #414868;
 }
@@ -494,6 +526,50 @@ body.dark-mode .remove-node-btn {
 }
 
 body.dark-mode .remove-node-btn:hover {
+    background: #F7768E;
+    color: #1A1B26;
+}
+
+/* 連接狀態提示 */
+.connection-status {
+    position: absolute;
+    top: -10px;
+    right: 10px;
+    padding: 4px 8px;
+    font-size: 0.75em;
+    font-weight: 600;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    z-index: 10;
+    animation: fadeInOut 3s ease-in-out;
+}
+
+.connection-status.success {
+    background: #22c55e;
+    color: #ffffff;
+}
+
+.connection-status.error {
+    background: #ef4444;
+    color: #ffffff;
+}
+
+@keyframes fadeInOut {
+    0% { opacity: 0; transform: translateY(-5px); }
+    20% { opacity: 1; transform: translateY(0); }
+    80% { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(-5px); }
+}
+
+/* 深色模式連接狀態 */
+body.dark-mode .connection-status.success {
+    background: #9ECE6A;
+    color: #1A1B26;
+}
+
+body.dark-mode .connection-status.error {
     background: #F7768E;
     color: #1A1B26;
 }

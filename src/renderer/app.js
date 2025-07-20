@@ -221,14 +221,17 @@ function updateNodesDisplay(nodes) {
                 <div class="node-details">
                     <span class="node-ip">${nodeIp}</span>
                     ${isLocalhost ? '<span class="node-label">本機</span>' : ''}
+                    ${isLocalhost ? '<span class="node-note">API伺服器運行時自動參與計算</span>' : ''}
                 </div>
             </div>
             <div class="node-controls">
                 <button class="check-connection-btn" data-node="${nodeIp}" title="檢查連接">
                     <i class="fas fa-wifi"></i>
                 </button>
-                <div class="node-toggle ${isLocalhost ? 'active' : ''}" data-node="${nodeIp}">
-                </div>
+                ${isLocalhost ? 
+                    '<div class="node-status">自動參與</div>' : 
+                    `<div class="node-toggle" data-node="${nodeIp}"></div>`
+                }
                 <button class="remove-node-btn" data-node="${nodeIp}" title="移除節點" ${isLocalhost && nodeIp === '127.0.0.1' ? 'style="display:none"' : ''}>
                     <i class="fas fa-times"></i>
                 </button>
@@ -236,7 +239,9 @@ function updateNodesDisplay(nodes) {
         `;
         
         const toggle = nodeItem.querySelector('.node-toggle');
-        toggle.addEventListener('click', () => toggleNode(nodeIp, toggle));
+        if (toggle) {
+            toggle.addEventListener('click', () => toggleNode(nodeIp, toggle));
+        }
         
         const checkBtn = nodeItem.querySelector('.check-connection-btn');
         checkBtn.addEventListener('click', () => checkNodeConnection(nodeIp));
@@ -262,9 +267,20 @@ function toggleNode(nodeIp, toggleElement) {
 function updateSelectedNodes() {
     const activeToggles = document.querySelectorAll('.node-toggle.active');
     selectedNodes = Array.from(activeToggles).map(toggle => toggle.dataset.node);
-    updateNodeCount(selectedNodes.length, discoveredNodes.length);
-    if (selectedNodes.length > 0) {
-        logMessage('系統', `已選擇 ${selectedNodes.length} 個節點: ${selectedNodes.join(', ')}`, 'info');
+    
+    // 計算總參與節點數：選中的遠程節點 + 本機(如果存在)
+    const rpcNodes = selectedNodes.filter(ip => ip !== '127.0.0.1');
+    const hasLocalhost = discoveredNodes.includes('127.0.0.1');
+    const totalParticipating = rpcNodes.length + (hasLocalhost ? 1 : 0);
+    const totalAvailable = discoveredNodes.length;
+    
+    updateNodeCount(totalParticipating, totalAvailable);
+    
+    if (rpcNodes.length > 0) {
+        logMessage('系統', `已選擇 ${rpcNodes.length} 個RPC節點: ${rpcNodes.join(', ')}`, 'info');
+    }
+    if (hasLocalhost) {
+        logMessage('系統', '本機將作為API伺服器自動參與計算', 'info');
     }
 }
 
@@ -335,8 +351,11 @@ async function startApiServer() {
         return;
     }
     
-    if (selectedNodes.length === 0) {
-        const confirm = window.confirm('未選擇任何節點，將僅使用本機進行推理。是否繼續？');
+    // 過濾掉本機IP，因為API伺服器會自動參與計算
+    const rpcNodes = selectedNodes.filter(ip => ip !== '127.0.0.1');
+    
+    if (rpcNodes.length === 0) {
+        const confirm = window.confirm('未選擇任何RPC節點，將僅使用本機進行推理。是否繼續？');
         if (!confirm) return;
     }
     
@@ -346,7 +365,7 @@ async function startApiServer() {
         const result = await window.electronAPI.startApiServer({
             modelName,
             apiKey,
-            rpcNodes: selectedNodes,
+            rpcNodes: rpcNodes, // 使用過濾後的RPC節點
             ngl
         });
         
@@ -354,7 +373,8 @@ async function startApiServer() {
             logMessage('系統', result.message, 'success');
             logMessage('系統', `使用模型: ${modelName}`, 'info');
             logMessage('系統', `GPU 層數: ${ngl}`, 'info');
-            logMessage('系統', `選擇的節點: ${selectedNodes.join(', ') || '僅本機'}`, 'info');
+            logMessage('系統', `RPC節點: ${rpcNodes.join(', ') || '無'}`, 'info');
+            logMessage('系統', `本機作為API伺服器參與計算`, 'info');
         } else {
             logMessage('系統', result.message, 'error');
             updateMainActionButton('start');
@@ -429,23 +449,73 @@ function initTheme() {
 async function checkNodeConnection(nodeIp) {
     try {
         logMessage('系統', `正在檢查節點 ${nodeIp} 的連接...`, 'info');
+        
+        // 顯示檢查狀態
+        const checkBtn = document.querySelector(`[data-node="${nodeIp}"].check-connection-btn`);
+        if (checkBtn) {
+            checkBtn.disabled = true;
+            checkBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        }
+        
         const result = await window.electronAPI.checkNodeConnection(nodeIp);
         
         if (result.success) {
             if (result.reachable) {
                 logMessage('系統', result.message, 'success');
+                // 顯示成功提示
+                showConnectionStatus(nodeIp, true);
             } else {
                 logMessage('系統', result.message, 'error');
+                // 顯示失敗提示
+                showConnectionStatus(nodeIp, false);
             }
             return result.reachable;
         } else {
             logMessage('系統', result.message, 'error');
+            showConnectionStatus(nodeIp, false);
             return false;
         }
     } catch (error) {
         logMessage('系統', `檢查連接失敗: ${error.message}`, 'error');
+        showConnectionStatus(nodeIp, false);
         return false;
+    } finally {
+        // 恢復按鈕狀態
+        const checkBtn = document.querySelector(`[data-node="${nodeIp}"].check-connection-btn`);
+        if (checkBtn) {
+            checkBtn.disabled = false;
+            checkBtn.innerHTML = '<i class="fas fa-wifi"></i>';
+        }
     }
+}
+
+// 顯示連接狀態提示
+function showConnectionStatus(nodeIp, success) {
+    const nodeItem = document.querySelector(`[data-node="${nodeIp}"]`).closest('.node-item');
+    if (!nodeItem) return;
+    
+    // 移除舊的狀態提示
+    const oldStatus = nodeItem.querySelector('.connection-status');
+    if (oldStatus) {
+        oldStatus.remove();
+    }
+    
+    // 創建新的狀態提示
+    const statusDiv = document.createElement('div');
+    statusDiv.className = `connection-status ${success ? 'success' : 'error'}`;
+    statusDiv.innerHTML = success ? 
+        '<i class="fas fa-check-circle"></i> 連接成功' : 
+        '<i class="fas fa-times-circle"></i> 連接失敗';
+    
+    // 添加到節點項目
+    nodeItem.appendChild(statusDiv);
+    
+    // 3秒後自動移除
+    setTimeout(() => {
+        if (statusDiv.parentNode) {
+            statusDiv.remove();
+        }
+    }, 3000);
 }
 
 // 手動添加節點
@@ -545,7 +615,11 @@ function logMessage(category, message, type = 'info') {
     }
     
     targetLog.appendChild(logEntry);
-    targetLog.scrollTop = targetLog.scrollHeight;
+    
+    // 自動滾動到底部
+    setTimeout(() => {
+        targetLog.scrollTop = targetLog.scrollHeight;
+    }, 10);
     
     // 限制日誌條目數量
     while (targetLog.children.length > 100) {

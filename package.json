@@ -22,7 +22,7 @@
     "electron-store": "^8.1.0"
   },
   "build": {
-    "appId": "com.example.distributed-llm",
+    "appId": "com.the-walking-fish.distributed-llm",
     "productName": "分佈式 LLM 推理器",
     "directories": {
       "output": "dist"

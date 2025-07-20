@@ -191,10 +191,74 @@ function startMdnsDiscovery() {
     discoveredNodes.add('127.0.0.1');
     console.log('Added 127.0.0.1 as localhost option');
     
-    // 發送初始節點列表（空列表，等待發現或手動添加）
+    // 發送初始節點列表
     setTimeout(() => {
       mainWindow?.webContents.send('node-update', Array.from(discoveredNodes));
     }, 1000);
+
+    // 設定定時廣播和搜尋 (每30秒)
+    const discoveryInterval = setInterval(() => {
+      console.log('Performing periodic mDNS discovery...');
+      
+      // 重新搜尋服務
+      const periodicBrowser = bonjour.find({ type: serviceType, protocol: 'tcp' });
+      
+      periodicBrowser.on('up', (service) => {
+        console.log('Periodic discovery - Service up:', service.name, service.addresses);
+        if (service.addresses && service.addresses.length > 0) {
+          service.addresses.forEach(addr => {
+            if (addr && 
+                addr !== '0.0.0.0' && 
+                !addr.startsWith('169.254') && 
+                !addr.includes(':') && 
+                /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(addr)) {
+              
+              const interfaces = os.networkInterfaces();
+              let isLocalIp = false;
+              Object.keys(interfaces).forEach(name => {
+                const interfaceList = interfaces[name];
+                if (interfaceList) {
+                  interfaceList.forEach(iface => {
+                    if (iface.family === 'IPv4' && iface.address === addr) {
+                      isLocalIp = true;
+                    }
+                  });
+                }
+              });
+              
+              if (isLocalIp) {
+                if (!discoveredNodes.has('127.0.0.1')) {
+                  discoveredNodes.add('127.0.0.1');
+                  console.log('Periodic discovery - Added localhost node');
+                  mainWindow?.webContents.send('node-update', Array.from(discoveredNodes));
+                }
+                if (addr !== '127.0.0.1') {
+                  console.log('Periodic discovery - Ignored local IP:', addr);
+                }
+              } else {
+                if (!discoveredNodes.has(addr)) {
+                  discoveredNodes.add(addr);
+                  console.log('Periodic discovery - Added remote node:', addr);
+                  mainWindow?.webContents.send('node-update', Array.from(discoveredNodes));
+                }
+              }
+            }
+          });
+        }
+      });
+
+      // 停止這次的搜尋 (5秒後)
+      setTimeout(() => {
+        periodicBrowser.stop();
+      }, 5000);
+    }, 30000); // 每30秒執行一次
+
+    // 清理定時器的函數
+    global.cleanupDiscovery = () => {
+      if (discoveryInterval) {
+        clearInterval(discoveryInterval);
+      }
+    };
 
   } catch (error) {
     console.error('Failed to start mDNS discovery:', error);
@@ -254,8 +318,13 @@ ipcMain.handle('start-api-server', async (event, options) => {
     const serverPath = path.join(basePath, 'bin', osMap[platform], binaryName);
     const modelPath = path.join(basePath, 'models', modelName);
 
-    // 組合 RPC 參數
-    const rpcString = rpcNodes.length > 0 ? rpcNodes.map(ip => `${ip}:50052`).join(',') : '';
+    // 過濾掉本機IP，因為API伺服器本身就會參與計算
+    const filteredRpcNodes = rpcNodes.filter(ip => ip !== '127.0.0.1' && ip !== 'localhost');
+    const rpcString = filteredRpcNodes.length > 0 ? filteredRpcNodes.map(ip => `${ip}:50052`).join(',') : '';
+    
+    console.log('Original RPC nodes:', rpcNodes);
+    console.log('Filtered RPC nodes (excluding localhost):', filteredRpcNodes);
+    console.log('RPC string:', rpcString);
     
     const args = [
       '-m', modelPath,
@@ -536,5 +605,8 @@ app.on('will-quit', () => {
   }
   if (bonjour) {
     bonjour.destroy();
+  }
+  if (global.cleanupDiscovery) {
+    global.cleanupDiscovery();
   }
 });

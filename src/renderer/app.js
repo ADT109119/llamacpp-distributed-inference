@@ -177,6 +177,26 @@ function updateLocalIpsDisplay(localIps) {
     console.log('Local IPs display updated successfully');
 }
 
+// 檢查是否為本機IP
+function isLocalIpAddress(ip) {
+    // 檢查是否為 localhost
+    if (ip === '127.0.0.1' || ip === 'localhost') {
+        return true;
+    }
+    
+    // 檢查是否為IPv6地址
+    if (ip.includes(':')) {
+        // 檢查常見的IPv6本機地址
+        if (ip === '::1' || ip.toLowerCase().startsWith('fe80:')) {
+            return true;
+        }
+    }
+    
+    // 檢查是否為本機的任何網路介面IP
+    const localIps = Array.from(document.querySelectorAll('.local-ip-address')).map(el => el.textContent);
+    return localIps.includes(ip);
+}
+
 // 更新節點顯示
 function updateNodesDisplay(nodes) {
     discoveredNodes = nodes;
@@ -193,7 +213,7 @@ function updateNodesDisplay(nodes) {
         const nodeItem = document.createElement('div');
         nodeItem.className = 'node-item';
         
-        const isLocalhost = nodeIp === '127.0.0.1' || nodeIp.includes('localhost');
+        const isLocalhost = isLocalIpAddress(nodeIp);
         
         nodeItem.innerHTML = `
             <div class="node-info">
@@ -209,7 +229,7 @@ function updateNodesDisplay(nodes) {
                 </button>
                 <div class="node-toggle ${isLocalhost ? 'active' : ''}" data-node="${nodeIp}">
                 </div>
-                <button class="remove-node-btn" data-node="${nodeIp}" title="移除節點">
+                <button class="remove-node-btn" data-node="${nodeIp}" title="移除節點" ${isLocalhost && nodeIp === '127.0.0.1' ? 'style="display:none"' : ''}>
                     <i class="fas fa-times"></i>
                 </button>
             </div>
@@ -222,7 +242,9 @@ function updateNodesDisplay(nodes) {
         checkBtn.addEventListener('click', () => checkNodeConnection(nodeIp));
         
         const removeBtn = nodeItem.querySelector('.remove-node-btn');
-        removeBtn.addEventListener('click', () => removeNode(nodeIp));
+        if (removeBtn) {
+            removeBtn.addEventListener('click', () => removeNode(nodeIp));
+        }
         
         elements.nodesContainer.appendChild(nodeItem);
     });
@@ -464,7 +486,8 @@ async function addManualNode() {
 
 // 移除節點
 async function removeNode(nodeIp) {
-    if (nodeIp === '127.0.0.1') {
+    // 檢查是否為本機IP
+    if (isLocalIpAddress(nodeIp)) {
         logMessage('系統', '無法移除本機節點', 'error');
         return;
     }
@@ -543,10 +566,7 @@ function setupEventListeners() {
         elements.apiKeyModal.style.display = 'block';
     });
     
-    // 手動添加節點按鈕
-    elements.addNodeBtn.addEventListener('click', () => {
-        elements.addNodeModal.style.display = 'block';
-    });
+    // 手動添加節點按鈕 (移除重複的事件監聽器)
     
     // GPU 控制同步
     syncGpuControls();
@@ -574,8 +594,18 @@ function setupEventListeners() {
     // Enter 鍵添加節點
     elements.nodeIpInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
+            e.preventDefault();
             addManualNode();
         }
+    });
+    
+    // 確保輸入框可以獲得焦點
+    elements.addNodeBtn.addEventListener('click', () => {
+        elements.addNodeModal.style.display = 'block';
+        // 延遲一點讓模態框完全顯示後再聚焦
+        setTimeout(() => {
+            elements.nodeIpInput.focus();
+        }, 100);
     });
     
     // 點擊模態框外部關閉

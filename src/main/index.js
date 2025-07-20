@@ -5,6 +5,8 @@ import fs from 'fs/promises';
 import { fileURLToPath } from 'url';
 import { Bonjour } from 'bonjour-service';
 import Store from 'electron-store';
+import os from 'os';
+import net from 'net';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -92,7 +94,7 @@ function startMdnsDiscovery() {
   try {
     bonjour = new Bonjour();
     const serviceType = 'llm-cluster';
-    const serviceName = 'LLMNode-' + require('os').hostname();
+    const serviceName = 'LLMNode-' + os.hostname();
 
     console.log('Starting mDNS discovery...');
     console.log('Service name:', serviceName);
@@ -126,12 +128,46 @@ function startMdnsDiscovery() {
       console.log('Service up:', service.name, service.addresses);
       if (service.addresses && service.addresses.length > 0) {
         service.addresses.forEach(addr => {
-          // 過濾掉無效的地址
-          if (addr && addr !== '0.0.0.0' && !addr.startsWith('169.254')) {
-            if (!discoveredNodes.has(addr)) {
-              discoveredNodes.add(addr);
-              console.log('Added discovered node:', addr);
-              mainWindow?.webContents.send('node-update', Array.from(discoveredNodes));
+          // 過濾掉無效的地址和IPv6地址
+          if (addr && 
+              addr !== '0.0.0.0' && 
+              !addr.startsWith('169.254') && 
+              !addr.includes(':') && // 排除IPv6
+              /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(addr)) { // 確保是有效的IPv4
+            
+            // 檢查是否為本機IP
+            const interfaces = os.networkInterfaces();
+            let isLocalIp = false;
+            Object.keys(interfaces).forEach(name => {
+              const interfaceList = interfaces[name];
+              if (interfaceList) {
+                interfaceList.forEach(iface => {
+                  if (iface.family === 'IPv4' && iface.address === addr) {
+                    isLocalIp = true;
+                  }
+                });
+              }
+            });
+            
+            // 如果是本機IP，確保 127.0.0.1 存在，其他本機IP都忽略
+            if (isLocalIp) {
+              // 確保 127.0.0.1 在節點列表中
+              if (!discoveredNodes.has('127.0.0.1')) {
+                discoveredNodes.add('127.0.0.1');
+                console.log('Added localhost node via mDNS discovery');
+                mainWindow?.webContents.send('node-update', Array.from(discoveredNodes));
+              }
+              // 其他本機IP (如 192.168.x.x) 都忽略，不添加到節點列表
+              if (addr !== '127.0.0.1') {
+                console.log('Ignored local IP:', addr, '(only 127.0.0.1 allowed for localhost)');
+              }
+            } else {
+              // 非本機IP，正常添加
+              if (!discoveredNodes.has(addr)) {
+                discoveredNodes.add(addr);
+                console.log('Added discovered remote node:', addr);
+                mainWindow?.webContents.send('node-update', Array.from(discoveredNodes));
+              }
             }
           }
         });
@@ -151,29 +187,18 @@ function startMdnsDiscovery() {
       }
     });
 
-    // 添加本機地址到節點列表
-    const os = require('os');
-    const interfaces = os.networkInterfaces();
-    Object.keys(interfaces).forEach(name => {
-      interfaces[name].forEach(iface => {
-        if (iface.family === 'IPv4' && !iface.internal) {
-          discoveredNodes.add(iface.address);
-          console.log('Added local interface:', iface.address);
-        }
-      });
-    });
-
-    // 添加 localhost
+    // 自動添加 127.0.0.1 作為本機節點選項
     discoveredNodes.add('127.0.0.1');
+    console.log('Added 127.0.0.1 as localhost option');
     
-    // 發送初始節點列表
+    // 發送初始節點列表（空列表，等待發現或手動添加）
     setTimeout(() => {
       mainWindow?.webContents.send('node-update', Array.from(discoveredNodes));
     }, 1000);
 
   } catch (error) {
     console.error('Failed to start mDNS discovery:', error);
-    // 如果 mDNS 失敗，至少添加本機地址
+    // 如果 mDNS 失敗，至少確保有 127.0.0.1
     discoveredNodes.add('127.0.0.1');
     setTimeout(() => {
       mainWindow?.webContents.send('node-update', Array.from(discoveredNodes));
@@ -306,7 +331,6 @@ ipcMain.handle('get-discovered-nodes', async () => {
 
 ipcMain.handle('get-local-ips', async () => {
   try {
-    const os = require('os');
     const interfaces = os.networkInterfaces();
     const localIps = [];
     
@@ -316,6 +340,7 @@ ipcMain.handle('get-local-ips', async () => {
       const interfaceList = interfaces[name];
       if (interfaceList) {
         interfaceList.forEach(iface => {
+          // 只處理IPv4地址
           if (iface.family === 'IPv4') {
             localIps.push({
               address: iface.address,
@@ -346,7 +371,6 @@ ipcMain.handle('get-local-ips', async () => {
 // 檢查節點連接性
 async function checkNodeConnection(nodeIp, port = 50052) {
   return new Promise((resolve) => {
-    const net = require('net');
     const socket = new net.Socket();
     
     const timeout = setTimeout(() => {
@@ -408,6 +432,30 @@ ipcMain.handle('add-manual-node', async (event, nodeIp) => {
     // 檢查是否已存在
     if (discoveredNodes.has(nodeIp)) {
       return { success: false, message: '該節點已存在' };
+    }
+    
+    // 檢查是否為本機IP
+    const interfaces = os.networkInterfaces();
+    let isLocalIp = false;
+    Object.keys(interfaces).forEach(name => {
+      const interfaceList = interfaces[name];
+      if (interfaceList) {
+        interfaceList.forEach(iface => {
+          // 只檢查IPv4地址
+          if (iface.family === 'IPv4' && iface.address === nodeIp) {
+            isLocalIp = true;
+          }
+        });
+      }
+    });
+    
+    if (isLocalIp) {
+      // 如果是本機IP，只允許添加 127.0.0.1
+      if (nodeIp === '127.0.0.1') {
+        // 允許添加 127.0.0.1
+      } else {
+        return { success: false, message: '本機節點請使用 127.0.0.1，其他本機IP不允許添加' };
+      }
     }
     
     // 檢查節點連接性

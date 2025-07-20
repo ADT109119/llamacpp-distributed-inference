@@ -15,6 +15,8 @@ const elements = {
     modelSelect: document.getElementById('model-select'),
     gpuLayers: document.getElementById('gpu-layers'),
     gpuSlider: document.getElementById('gpu-slider'),
+    parallelRequests: document.getElementById('parallel-requests'),
+    parallelSlider: document.getElementById('parallel-slider'),
     mainActionBtn: document.getElementById('main-action-btn'),
     themeToggle: document.getElementById('theme-toggle'),
     settingsBtn: document.getElementById('settings-btn'),
@@ -344,6 +346,7 @@ async function toggleApiServer() {
 async function startApiServer() {
     const modelName = elements.modelSelect.value;
     const ngl = parseInt(elements.gpuLayers.value) || 0;
+    const np = parseInt(elements.parallelRequests.value) || 1;
     const apiKey = elements.apiKeyInput.value;
     
     if (!modelName) {
@@ -366,13 +369,15 @@ async function startApiServer() {
             modelName,
             apiKey,
             rpcNodes: rpcNodes, // 使用過濾後的RPC節點
-            ngl
+            ngl,
+            np
         });
         
         if (result.success) {
             logMessage('系統', result.message, 'success');
             logMessage('系統', `使用模型: ${modelName}`, 'info');
             logMessage('系統', `GPU 層數: ${ngl}`, 'info');
+            logMessage('系統', `並行請求數: ${np}`, 'info');
             logMessage('系統', `RPC節點: ${rpcNodes.join(', ') || '無'}`, 'info');
             logMessage('系統', `本機作為API伺服器參與計算`, 'info');
         } else {
@@ -402,6 +407,7 @@ async function stopApiServer() {
 
 // 同步滑動條和輸入框
 function syncGpuControls() {
+    // GPU 層數控制
     elements.gpuSlider.addEventListener('input', (e) => {
         elements.gpuLayers.value = e.target.value;
     });
@@ -410,6 +416,17 @@ function syncGpuControls() {
         const value = Math.max(0, Math.min(100, parseInt(e.target.value) || 0));
         elements.gpuLayers.value = value;
         elements.gpuSlider.value = value;
+    });
+    
+    // 並行請求數控制
+    elements.parallelSlider.addEventListener('input', (e) => {
+        elements.parallelRequests.value = e.target.value;
+    });
+    
+    elements.parallelRequests.addEventListener('input', (e) => {
+        const value = Math.max(1, Math.min(16, parseInt(e.target.value) || 1));
+        elements.parallelRequests.value = value;
+        elements.parallelSlider.value = value;
     });
 }
 

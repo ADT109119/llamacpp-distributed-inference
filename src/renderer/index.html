@@ -106,6 +106,14 @@
                         </div>
                     </div>
                     
+                    <div class="control-item">
+                        <label for="parallel-requests">並行請求數 (-np)</label>
+                        <div class="slider-container">
+                            <input type="range" id="parallel-slider" min="1" max="16" value="1" class="gpu-slider">
+                            <input type="number" id="parallel-requests" value="1" min="1" max="16" class="gpu-input">
+                        </div>
+                    </div>
+                    
                     <button id="main-action-btn" class="main-action-btn">
                         <i class="btn-icon fas fa-play"></i>
                         <span class="btn-text">啟動 API 伺服器</span>

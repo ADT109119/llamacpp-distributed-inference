@@ -297,7 +297,7 @@ ipcMain.handle('get-models', async () => {
 
 ipcMain.handle('start-api-server', async (event, options) => {
   try {
-    const { modelName, apiKey, rpcNodes, ngl } = options;
+    const { modelName, apiKey, rpcNodes, ngl, np } = options;
     
     if (apiServerProcess) {
       return { success: false, message: 'API 伺服器已在運行中' };
@@ -342,6 +342,10 @@ ipcMain.handle('start-api-server', async (event, options) => {
 
     if (ngl && ngl > 0) {
       args.push('-ngl', ngl.toString());
+    }
+
+    if (np && np > 0) {
+      args.push('-np', np.toString());
     }
 
     console.log('Starting API server with args:', args);

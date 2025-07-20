@@ -403,10 +403,6 @@ telnet 192.168.1.101 50052
 3. 提交變更
 4. 發送 Pull Request
 
-## 授權
-
-Apache 2.0 License
-
 ## 支援
 
 如有問題或建議，請提交 Issue 或聯繫本人 2.jerry32262686@gmail.com。
@@ -414,7 +410,7 @@ Apache 2.0 License
 ## ⚖️ 授權與免責聲明
 
 ### 授權
-MIT License
+Apache 2.0 License
 
 ### 免責聲明
 - 本軟體僅供學習、研究和個人使用

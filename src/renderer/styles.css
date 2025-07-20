@@ -1,0 +1,923 @@
+/* 全域樣式 */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #ffffff;
+    color: #1a1a1a;
+    line-height: 1.5;
+    min-height: 100vh;
+    font-size: 14px;
+}
+
+/* 深色模式 */
+body.dark-mode {
+    background: #1A1B26;
+    color: #C0CAF5;
+}
+
+.container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* 頂部導航欄 */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 0;
+    margin-bottom: 30px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.header-left h1 {
+    font-size: 1.6em;
+    font-weight: 600;
+    color: #1a1a1a;
+}
+
+.header-left h1 i {
+    margin-right: 8px;
+    color: #2563eb;
+}
+
+.header-right {
+    display: flex;
+    gap: 15px;
+}
+
+.header-btn {
+    background: #f5f5f5;
+    border: 1px solid #d0d0d0;
+    color: #1a1a1a;
+    padding: 10px 15px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 1.1em;
+}
+
+.header-btn:hover {
+    background: #e8e8e8;
+}
+
+/* 深色模式樣式 */
+body.dark-mode .header {
+    border-bottom: 1px solid #414868;
+}
+
+body.dark-mode .header-left h1 {
+    color: #C0CAF5;
+}
+
+body.dark-mode .header-left h1 i {
+    color: #7AA2F7;
+}
+
+body.dark-mode .header-btn {
+    background: #24283B;
+    border: 1px solid #414868;
+    color: #C0CAF5;
+}
+
+body.dark-mode .header-btn:hover {
+    background: #414868;
+}
+
+/* 儀表板網格佈局 */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto;
+    gap: 25px;
+}
+
+/* 卡片樣式 */
+.card {
+    background: #ffffff;
+    border: 1px solid #d0d0d0;
+    overflow: hidden;
+}
+
+.card-header {
+    background: #f8f8f8;
+    padding: 20px 25px;
+    border-bottom: 1px solid #d0d0d0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.card-header h2 {
+    color: #1a1a1a;
+    font-size: 1.1em;
+    font-weight: 600;
+    margin: 0;
+}
+
+.card-header h2 i {
+    margin-right: 8px;
+    width: 16px;
+    text-align: center;
+}
+
+.card-content {
+    padding: 25px;
+}
+
+/* 深色模式卡片 */
+body.dark-mode .card {
+    background: #24283B;
+    border: 1px solid #414868;
+}
+
+body.dark-mode .card-header {
+    background: #1F2335;
+    border-bottom: 1px solid #414868;
+}
+
+body.dark-mode .card-header h2 {
+    color: #C0CAF5;
+}
+
+/* 狀態卡片 */
+.status-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 0;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.status-item:last-child {
+    border-bottom: none;
+}
+
+.status-label {
+    font-weight: 500;
+    color: #1a1a1a;
+    font-size: 0.9em;
+}
+
+.status-indicator-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.status-dot {
+    font-size: 1.2em;
+}
+
+.status-dot.running {
+    color: #22c55e;
+}
+
+.status-dot.stopped {
+    color: #ef4444;
+}
+
+.status-dot.starting {
+    color: #f59e0b;
+}
+
+.status-text {
+    font-size: 0.85em;
+    color: #666666;
+}
+
+.api-url {
+    color: #2563eb;
+    text-decoration: underline;
+    cursor: pointer;
+    font-family: 'Fira Code', monospace;
+    font-size: 0.9em;
+}
+
+.node-count {
+    color: #7c3aed;
+    font-weight: 600;
+}
+
+/* 深色模式狀態 */
+body.dark-mode .status-item {
+    border-bottom: 1px solid #414868;
+}
+
+body.dark-mode .status-label {
+    color: #C0CAF5;
+}
+
+body.dark-mode .status-dot.running {
+    color: #9ECE6A;
+}
+
+body.dark-mode .status-dot.stopped {
+    color: #F7768E;
+}
+
+body.dark-mode .status-dot.starting {
+    color: #E0AF68;
+}
+
+body.dark-mode .status-text {
+    color: #A9B1D6;
+}
+
+body.dark-mode .api-url {
+    color: #7AA2F7;
+}
+
+body.dark-mode .node-count {
+    color: #BB9AF7;
+}
+
+/* 節點卡片 */
+.nodes-container {
+    min-height: 200px;
+}
+
+.node-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 15px;
+    margin-bottom: 12px;
+    background: #f8f8f8;
+    border: 1px solid #d0d0d0;
+    transition: all 0.2s;
+}
+
+.node-item:hover {
+    background: #f0f0f0;
+}
+
+.node-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.node-icon {
+    font-size: 1.2em;
+}
+
+.node-details {
+    display: flex;
+    flex-direction: column;
+}
+
+.node-ip {
+    font-family: 'Fira Code', monospace;
+    font-weight: 500;
+    color: #1a1a1a;
+    font-size: 0.9em;
+}
+
+.node-label {
+    background: #2563eb;
+    color: #ffffff;
+    padding: 2px 8px;
+    font-size: 0.7em;
+    font-weight: 600;
+    margin-top: 4px;
+    width: fit-content;
+}
+
+.node-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.node-toggle {
+    position: relative;
+    width: 50px;
+    height: 24px;
+    background: #d0d0d0;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+.node-toggle.active {
+    background: #22c55e;
+}
+
+.node-toggle::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    background: white;
+    transition: transform 0.3s;
+}
+
+.node-toggle.active::after {
+    transform: translateX(26px);
+}
+
+.loading {
+    text-align: center;
+    color: #666666;
+    font-style: italic;
+    padding: 40px 0;
+}
+
+/* 深色模式節點 */
+body.dark-mode .node-item {
+    background: #1F2335;
+    border: 1px solid #414868;
+}
+
+body.dark-mode .node-item:hover {
+    background: #2A2E42;
+    border-color: #7AA2F7;
+}
+
+body.dark-mode .node-ip {
+    color: #C0CAF5;
+}
+
+body.dark-mode .node-label {
+    background: #7AA2F7;
+    color: #1A1B26;
+}
+
+body.dark-mode .node-toggle {
+    background: #414868;
+}
+
+body.dark-mode .node-toggle.active {
+    background: #9ECE6A;
+}
+
+body.dark-mode .loading {
+    color: #A9B1D6;
+}
+
+/* 控制面板卡片 */
+.control-item {
+    margin-bottom: 25px;
+}
+
+.control-item label {
+    display: block;
+    font-weight: 500;
+    color: #1a1a1a;
+    margin-bottom: 8px;
+    font-size: 0.9em;
+}
+
+.modern-select {
+    width: 100%;
+    padding: 12px 15px;
+    background: #ffffff;
+    border: 1px solid #d0d0d0;
+    color: #1a1a1a;
+    font-size: 1em;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.modern-select:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* 深色模式控制 */
+body.dark-mode .control-item label {
+    color: #C0CAF5;
+}
+
+body.dark-mode .modern-select {
+    background: #1F2335;
+    border: 1px solid #414868;
+    color: #C0CAF5;
+}
+
+body.dark-mode .modern-select:focus {
+    border-color: #7AA2F7;
+    box-shadow: 0 0 0 3px rgba(122, 162, 247, 0.1);
+}
+
+.slider-container {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.gpu-slider {
+    flex: 1;
+    height: 6px;
+    background: #e0e0e0;
+    outline: none;
+    -webkit-appearance: none;
+}
+
+.gpu-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 20px;
+    height: 20px;
+    background: #2563eb;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.gpu-slider::-webkit-slider-thumb:hover {
+    background: #1d4ed8;
+}
+
+.gpu-input {
+    width: 80px;
+    padding: 8px 12px;
+    background: #ffffff;
+    border: 1px solid #d0d0d0;
+    color: #1a1a1a;
+    text-align: center;
+    font-size: 0.9em;
+}
+
+.gpu-input:focus {
+    outline: none;
+    border-color: #2563eb;
+}
+
+/* 深色模式滑動條 */
+body.dark-mode .gpu-slider {
+    background: #414868;
+}
+
+body.dark-mode .gpu-slider::-webkit-slider-thumb {
+    background: #7AA2F7;
+}
+
+body.dark-mode .gpu-slider::-webkit-slider-thumb:hover {
+    background: #9ABDF5;
+}
+
+body.dark-mode .gpu-input {
+    background: #1F2335;
+    border: 1px solid #414868;
+    color: #C0CAF5;
+}
+
+body.dark-mode .gpu-input:focus {
+    border-color: #7AA2F7;
+}
+
+.main-action-btn {
+    width: 100%;
+    padding: 16px 22px;
+    background: #2563eb;
+    border: 1px solid #2563eb;
+    color: #ffffff;
+    font-size: 1em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.main-action-btn:hover {
+    background: #1d4ed8;
+    border-color: #1d4ed8;
+}
+
+.main-action-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.main-action-btn.danger {
+    background: #ef4444;
+    border-color: #ef4444;
+}
+
+.main-action-btn.danger:hover {
+    background: #dc2626;
+    border-color: #dc2626;
+}
+
+.main-action-btn.loading {
+    background: #f59e0b;
+    border-color: #f59e0b;
+}
+
+/* 深色模式主按鈕 */
+body.dark-mode .main-action-btn {
+    background: #7AA2F7;
+    border-color: #7AA2F7;
+    color: #1A1B26;
+}
+
+body.dark-mode .main-action-btn:hover {
+    background: #9ABDF5;
+    border-color: #9ABDF5;
+}
+
+body.dark-mode .main-action-btn.danger {
+    background: #F7768E;
+    border-color: #F7768E;
+}
+
+body.dark-mode .main-action-btn.danger:hover {
+    background: #FF9CAE;
+    border-color: #FF9CAE;
+}
+
+body.dark-mode .main-action-btn.loading {
+    background: #E0AF68;
+    border-color: #E0AF68;
+}
+
+.btn-icon {
+    font-size: 1.2em;
+}
+
+.btn-text {
+    font-weight: 600;
+}
+
+/* 按鈕樣式 */
+.btn {
+    padding: 12px 24px;
+    border: 1px solid #000000;
+    font-size: 1em;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-primary {
+    background: #000000;
+    color: #ffffff;
+}
+
+.btn-primary:hover:not(:disabled) {
+    background: #333333;
+}
+
+.btn-secondary {
+    background: #ffffff;
+    color: #000000;
+}
+
+.btn-secondary:hover:not(:disabled) {
+    background: #f0f0f0;
+}
+
+.btn-danger {
+    background: #ffffff;
+    color: #000000;
+    border: 2px solid #000000;
+}
+
+.btn-danger:hover:not(:disabled) {
+    background: #000000;
+    color: #ffffff;
+}
+
+/* 日誌卡片 */
+.log-tabs {
+    display: flex;
+    gap: 5px;
+}
+
+.tab-btn {
+    padding: 8px 16px;
+    background: #e0e0e0;
+    border: none;
+    color: #666666;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-weight: 500;
+    font-size: 0.85em;
+}
+
+.tab-btn.active {
+    background: #2563eb;
+    color: #ffffff;
+}
+
+.tab-btn:hover:not(.active) {
+    background: #d0d0d0;
+    color: #1a1a1a;
+}
+
+.log-content {
+    height: 280px;
+    overflow-y: auto;
+    background: #f8f8f8;
+    margin-top: 15px;
+    border: 1px solid #d0d0d0;
+}
+
+.log-panel {
+    display: none;
+    padding: 20px;
+    font-family: 'Fira Code', monospace;
+    font-size: 0.85em;
+    line-height: 1.5;
+}
+
+.log-panel.active {
+    display: block;
+}
+
+.log-entry {
+    margin-bottom: 8px;
+    padding: 4px 0;
+    border-left: 3px solid transparent;
+    padding-left: 8px;
+}
+
+.log-entry.error {
+    color: #ef4444;
+    border-left-color: #ef4444;
+    font-weight: 500;
+}
+
+.log-entry.success {
+    color: #22c55e;
+    border-left-color: #22c55e;
+}
+
+.log-entry.info {
+    color: #2563eb;
+    border-left-color: #2563eb;
+}
+
+.log-entry {
+    color: #666666;
+}
+
+/* 深色模式日誌 */
+body.dark-mode .tab-btn {
+    background: #414868;
+    color: #A9B1D6;
+}
+
+body.dark-mode .tab-btn.active {
+    background: #7AA2F7;
+    color: #1A1B26;
+}
+
+body.dark-mode .tab-btn:hover:not(.active) {
+    background: #565F89;
+    color: #C0CAF5;
+}
+
+body.dark-mode .log-content {
+    background: #1F2335;
+    border: 1px solid #414868;
+}
+
+body.dark-mode .log-entry.error {
+    color: #F7768E;
+    border-left-color: #F7768E;
+}
+
+body.dark-mode .log-entry.success {
+    color: #9ECE6A;
+    border-left-color: #9ECE6A;
+}
+
+body.dark-mode .log-entry.info {
+    color: #7AA2F7;
+    border-left-color: #7AA2F7;
+}
+
+body.dark-mode .log-entry {
+    color: #A9B1D6;
+}
+
+/* 模態框樣式 */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+.modal-content {
+    background: #ffffff;
+    margin: 15% auto;
+    padding: 0;
+    width: 90%;
+    max-width: 500px;
+    border: 1px solid #d0d0d0;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 25px;
+    border-bottom: 1px solid #d0d0d0;
+    background: #f8f8f8;
+}
+
+.modal-header h3 {
+    margin: 0;
+    color: #1a1a1a;
+    font-weight: 600;
+}
+
+.close {
+    color: #666666;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: color 0.2s;
+    background: none;
+    border: none;
+}
+
+.close:hover {
+    color: #ef4444;
+}
+
+.modal-body {
+    padding: 25px;
+}
+
+.modal-body label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: #1a1a1a;
+}
+
+.modal-body input {
+    width: 100%;
+    padding: 12px 15px;
+    border: 1px solid #d0d0d0;
+    font-size: 1em;
+    margin-bottom: 15px;
+    background: #ffffff;
+    color: #1a1a1a;
+    transition: all 0.2s;
+}
+
+.modal-body input:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.help-text {
+    font-size: 0.9em;
+    color: #666666;
+    line-height: 1.4;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 20px 25px;
+    border-top: 1px solid #d0d0d0;
+    background: #f8f8f8;
+}
+
+/* 深色模式模態框 */
+body.dark-mode .modal-content {
+    background: #24283B;
+    border: 1px solid #414868;
+}
+
+body.dark-mode .modal-header {
+    border-bottom: 1px solid #414868;
+    background: #1F2335;
+}
+
+body.dark-mode .modal-header h3 {
+    color: #C0CAF5;
+}
+
+body.dark-mode .close {
+    color: #A9B1D6;
+}
+
+body.dark-mode .close:hover {
+    color: #F7768E;
+}
+
+body.dark-mode .modal-body label {
+    color: #C0CAF5;
+}
+
+body.dark-mode .modal-body input {
+    border: 1px solid #414868;
+    background: #1F2335;
+    color: #C0CAF5;
+}
+
+body.dark-mode .modal-body input:focus {
+    border-color: #7AA2F7;
+    box-shadow: 0 0 0 3px rgba(122, 162, 247, 0.1);
+}
+
+body.dark-mode .help-text {
+    color: #A9B1D6;
+}
+
+body.dark-mode .modal-footer {
+    border-top: 1px solid #414868;
+    background: #1F2335;
+}
+
+/* 響應式設計 */
+@media (max-width: 1024px) {
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+    
+    .header-left h1 {
+        font-size: 1.5em;
+    }
+}
+
+@media (max-width: 768px) {
+    .container {
+        padding: 15px;
+    }
+    
+    .header {
+        flex-direction: column;
+        gap: 15px;
+        text-align: center;
+    }
+    
+    .header-right {
+        justify-content: center;
+    }
+    
+    .card-content {
+        padding: 20px;
+    }
+    
+    .slider-container {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+    
+    .gpu-input {
+        width: 100%;
+    }
+    
+    .node-item {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 15px;
+    }
+    
+    .node-controls {
+        justify-content: space-between;
+    }
+}
+
+/* 滾動條樣式 */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f8f8f8;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #000000;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #333333;
+}

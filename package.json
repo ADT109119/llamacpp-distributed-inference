@@ -1,0 +1,48 @@
+{
+  "name": "distributed-llm-inference",
+  "version": "1.0.0",
+  "description": "分佈式 LLM 推理桌面應用程式",
+  "main": "src/main/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build": "electron-builder",
+    "pack": "electron-builder --dir"
+  },
+  "keywords": ["electron", "llm", "distributed", "inference"],
+  "author": "Your Name",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "dependencies": {
+    "bonjour-service": "^1.2.1",
+    "electron-store": "^8.1.0"
+  },
+  "build": {
+    "appId": "com.example.distributed-llm",
+    "productName": "分佈式 LLM 推理器",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "node_modules/**/*"
+    ],
+    "extraResources": [
+      "bin/**/*",
+      "models/**/*"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  }
+}

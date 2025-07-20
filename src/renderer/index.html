@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>分佈式 LLM 推理控制器</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 頂部導航欄 -->
+        <header class="header">
+            <div class="header-left">
+                <h1><i class="fas fa-bolt"></i> Distributed LLM Dashboard</h1>
+            </div>
+            <div class="header-right">
+                <button id="theme-toggle" class="header-btn" title="切換主題">
+                    <i class="theme-icon fas fa-moon"></i>
+                </button>
+                <button id="settings-btn" class="header-btn" title="設定">
+                    <i class="fas fa-cog"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- 主要儀表板網格 -->
+        <div class="dashboard-grid">
+            <!-- 全局狀態卡片 -->
+            <div class="card status-card">
+                <div class="card-header">
+                    <h2><i class="fas fa-chart-line"></i> 全局狀態</h2>
+                </div>
+                <div class="card-content">
+                    <div class="status-item">
+                        <span class="status-label">RPC 伺服器</span>
+                        <div class="status-indicator-container">
+                            <i id="rpc-status" class="status-dot starting fas fa-circle"></i>
+                            <span class="status-text">啟動中...</span>
+                        </div>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">API 伺服器</span>
+                        <div class="status-indicator-container">
+                            <i id="api-status" class="status-dot stopped fas fa-circle"></i>
+                            <span class="status-text">已停止</span>
+                        </div>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">API 位址</span>
+                        <span id="api-url" class="api-url">N/A</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">連接節點數</span>
+                        <span id="node-count" class="node-count">0/0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 網路節點卡片 -->
+            <div class="card nodes-card">
+                <div class="card-header">
+                    <h2><i class="fas fa-network-wired"></i> 網路節點</h2>
+                </div>
+                <div class="card-content">
+                    <div id="nodes-container" class="nodes-container">
+                        <p class="loading">🔍 正在搜尋網路節點...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 控制面板卡片 -->
+            <div class="card control-card">
+                <div class="card-header">
+                    <h2><i class="fas fa-sliders-h"></i> 控制面板</h2>
+                </div>
+                <div class="card-content">
+                    <div class="control-item">
+                        <label for="model-select">模型 (Model)</label>
+                        <select id="model-select" class="modern-select">
+                            <option value="">載入中...</option>
+                        </select>
+                    </div>
+                    
+                    <div class="control-item">
+                        <label for="gpu-layers">GPU Layers (-ngl)</label>
+                        <div class="slider-container">
+                            <input type="range" id="gpu-slider" min="0" max="100" value="35" class="gpu-slider">
+                            <input type="number" id="gpu-layers" value="35" min="0" max="100" class="gpu-input">
+                        </div>
+                    </div>
+                    
+                    <button id="main-action-btn" class="main-action-btn">
+                        <i class="btn-icon fas fa-play"></i>
+                        <span class="btn-text">啟動 API 伺服器</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 實時日誌卡片 -->
+            <div class="card logs-card">
+                <div class="card-header">
+                    <h2><i class="fas fa-terminal"></i> 實時日誌</h2>
+                    <div class="log-tabs">
+                        <button class="tab-btn active" data-tab="system">系統</button>
+                        <button class="tab-btn" data-tab="rpc">RPC</button>
+                        <button class="tab-btn" data-tab="api">API</button>
+                    </div>
+                </div>
+                <div class="card-content">
+                    <div class="log-content">
+                        <div id="system-log" class="log-panel active"></div>
+                        <div id="rpc-log" class="log-panel"></div>
+                        <div id="api-log" class="log-panel"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- API Key 設定模態框 -->
+    <div id="api-key-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-key"></i> API Key 設定</h3>
+                <button class="close"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <label for="api-key-input">API Key:</label>
+                <input type="password" id="api-key-input" placeholder="輸入您的 API Key (可選)">
+                <p class="help-text">API Key 用於保護您的 API 伺服器，如果不設定則任何人都可以存取。</p>
+            </div>
+            <div class="modal-footer">
+                <button id="save-api-key" class="btn btn-primary"><i class="fas fa-save"></i> 儲存</button>
+                <button id="cancel-api-key" class="btn btn-secondary">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

@@ -21,11 +21,17 @@ const store = new Store();
 
 // 創建主視窗
 function createWindow() {
+  // 設定圖示路徑
+  const iconPath = app.isPackaged 
+    ? path.join(process.resourcesPath, 'images', 'icon.png')
+    : path.join(__dirname, '../../images/icon.png');
+
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 800,
     minWidth: 1200,
     minHeight: 700,
+    icon: iconPath, // 設定視窗圖示
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,

@@ -32,6 +32,7 @@
       "node_modules/**/*",
       "models/",
       "models/README.md",
+      "images/**/*",
       "!models/*.gguf"
     ],
     "extraFiles": [
@@ -41,14 +42,27 @@
         "filter": ["**/*"]
       }
     ],
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "images/icon.ico",
+      "uninstallerIcon": "images/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
     "win": {
-      "target": "nsis"
+      "target": "portable",
+      "icon": "images/icon.ico"
     },
     "mac": {
-      "target": "dmg"
+      "target": "dmg",
+      "icon": "images/icon.png",
+      "category": "public.app-category.productivity"
     },
     "linux": {
-      "target": "AppImage"
+      "target": "AppImage",
+      "icon": "images/icon.png",
+      "category": "Utility"
     }
   }
 }

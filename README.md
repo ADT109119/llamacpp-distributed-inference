@@ -2,7 +2,7 @@
 
 一個基於 [llama.cpp](https://github.com/ggml-org/llama.cpp) 的分佈式 LLM 推理程式，讓您能夠利用區域網路內的多台電腦協同進行大型語言模型的分佈式推理，使用 Electron 的製作跨平台桌面應用程式操作 UI。
 
-![](image.png)
+![](banner.png)
 
 ## 功能特色
 
@@ -14,6 +14,8 @@
 - 📊 **實時監控**: 多標籤日誌系統，自動滾動，狀態即時更新
 - 🔧 **專業工具**: 節點連接檢查、本機IP顯示、手動節點管理
 - 🚀 **跨平台**: 支援 Windows、macOS 和 Linux，統一體驗
+
+![](image.png)
 
 ## 系統需求
 

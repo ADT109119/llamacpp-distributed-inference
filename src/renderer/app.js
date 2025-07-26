@@ -19,6 +19,7 @@ const elements = {
     parallelSlider: document.getElementById('parallel-slider'),
     mainActionBtn: document.getElementById('main-action-btn'),
     themeToggle: document.getElementById('theme-toggle'),
+    modelsPathBtn: document.getElementById('models-path-btn'),
     settingsBtn: document.getElementById('settings-btn'),
     addNodeBtn: document.getElementById('add-node-btn'),
     apiKeyModal: document.getElementById('api-key-modal'),
@@ -31,6 +32,15 @@ const elements = {
     addNodeConfirm: document.getElementById('add-node-confirm'),
     addNodeCancel: document.getElementById('add-node-cancel'),
     closeAddNodeModal: document.querySelector('.close-add-node'),
+    modelsPathModal: document.getElementById('models-path-modal'),
+    currentModelsPath: document.getElementById('current-models-path'),
+    newModelsPath: document.getElementById('new-models-path'),
+    browseModelsPath: document.getElementById('browse-models-path'),
+    saveModelsPath: document.getElementById('save-models-path'),
+    resetModelsPath: document.getElementById('reset-models-path'),
+    cancelModelsPath: document.getElementById('cancel-models-path'),
+    closeModelsPathModal: document.querySelector('.close-models-path'),
+    openModelsFolder: document.getElementById('open-models-folder'),
     systemLog: document.getElementById('system-log'),
     rpcLog: document.getElementById('rpc-log'),
     apiLog: document.getElementById('api-log'),
@@ -67,11 +77,12 @@ async function initApp() {
 async function loadModels() {
     try {
         const models = await window.electronAPI.getModels();
+        const modelsPath = await window.electronAPI.getModelsPath();
         elements.modelSelect.innerHTML = '';
         
         if (models.length === 0) {
-            elements.modelSelect.innerHTML = '<option value="">請將 .gguf 模型檔案放入 models 資料夾</option>';
-            logMessage('系統', '未找到任何模型檔案，請將 .gguf 檔案放入 models 資料夾', 'info');
+            elements.modelSelect.innerHTML = '<option value="">請將 .gguf 模型檔案放入模型資料夾</option>';
+            logMessage('系統', `未找到任何模型檔案，模型路徑: ${modelsPath}`, 'info');
         } else {
             elements.modelSelect.innerHTML = '<option value="">請選擇模型...</option>';
             models.forEach(model => {
@@ -80,10 +91,91 @@ async function loadModels() {
                 option.textContent = model;
                 elements.modelSelect.appendChild(option);
             });
-            logMessage('系統', `找到 ${models.length} 個模型檔案`, 'success');
+            logMessage('系統', `找到 ${models.length} 個模型檔案，路徑: ${modelsPath}`, 'success');
         }
     } catch (error) {
         logMessage('系統', `載入模型列表失敗: ${error.message}`, 'error');
+    }
+}
+
+// 載入模型路徑設定
+async function loadModelsPathSettings() {
+    try {
+        const currentPath = await window.electronAPI.getModelsPath();
+        elements.currentModelsPath.value = currentPath;
+        elements.newModelsPath.value = '';
+    } catch (error) {
+        logMessage('系統', `載入模型路徑設定失敗: ${error.message}`, 'error');
+    }
+}
+
+// 瀏覽模型資料夾
+async function browseModelsFolder() {
+    try {
+        const result = await window.electronAPI.browseModelsFolder();
+        if (result.success) {
+            elements.newModelsPath.value = result.path;
+        } else {
+            logMessage('系統', result.message, 'error');
+        }
+    } catch (error) {
+        logMessage('系統', `瀏覽資料夾失敗: ${error.message}`, 'error');
+    }
+}
+
+// 儲存模型路徑
+async function saveModelsPath() {
+    const newPath = elements.newModelsPath.value.trim();
+    if (!newPath) {
+        alert('請輸入或選擇新的模型路徑');
+        return;
+    }
+    
+    try {
+        const result = await window.electronAPI.setModelsPath(newPath);
+        if (result.success) {
+            logMessage('系統', result.message, 'success');
+            elements.modelsPathModal.style.display = 'none';
+            // 重新載入模型列表
+            await loadModels();
+            await loadModelsPathSettings();
+        } else {
+            logMessage('系統', result.message, 'error');
+        }
+    } catch (error) {
+        logMessage('系統', `儲存模型路徑失敗: ${error.message}`, 'error');
+    }
+}
+
+// 重置模型路徑
+async function resetModelsPath() {
+    try {
+        const result = await window.electronAPI.resetModelsPath();
+        if (result.success) {
+            logMessage('系統', result.message, 'success');
+            elements.modelsPathModal.style.display = 'none';
+            // 重新載入模型列表
+            await loadModels();
+            await loadModelsPathSettings();
+        } else {
+            logMessage('系統', result.message, 'error');
+        }
+    } catch (error) {
+        logMessage('系統', `重置模型路徑失敗: ${error.message}`, 'error');
+    }
+}
+
+// 開啟模型資料夾
+async function openModelsFolder() {
+    try {
+        const result = await window.electronAPI.openModelsFolder();
+        if (result.success) {
+            logMessage('系統', result.message, 'success');
+        } else {
+            logMessage('系統', result.message, 'error');
+        }
+    } catch (error) {
+        logMessage('系統', `開啟資料夾失敗: ${error.message}`, 'error');
     }
 }
 
@@ -633,10 +725,13 @@ function logMessage(category, message, type = 'info') {
     
     targetLog.appendChild(logEntry);
     
-    // 自動滾動到底部
-    setTimeout(() => {
+    // 強制重新計算並滾動到底部
+    targetLog.scrollTop = targetLog.scrollHeight;
+    
+    // 使用 requestAnimationFrame 確保 DOM 更新完成後再滾動
+    requestAnimationFrame(() => {
         targetLog.scrollTop = targetLog.scrollHeight;
-    }, 10);
+    });
     
     // 限制日誌條目數量
     while (targetLog.children.length > 100) {
@@ -651,6 +746,12 @@ function setupEventListeners() {
     
     // 主題切換按鈕
     elements.themeToggle.addEventListener('click', toggleTheme);
+    
+    // 模型路徑設定按鈕
+    elements.modelsPathBtn.addEventListener('click', async () => {
+        await loadModelsPathSettings();
+        elements.modelsPathModal.style.display = 'block';
+    });
     
     // 設定按鈕
     elements.settingsBtn.addEventListener('click', () => {
@@ -699,6 +800,25 @@ function setupEventListeners() {
         }, 100);
     });
     
+    // 模型路徑設定模態框事件
+    elements.browseModelsPath.addEventListener('click', browseModelsFolder);
+    elements.saveModelsPath.addEventListener('click', saveModelsPath);
+    elements.resetModelsPath.addEventListener('click', resetModelsPath);
+    elements.openModelsFolder.addEventListener('click', openModelsFolder);
+    elements.cancelModelsPath.addEventListener('click', () => {
+        elements.modelsPathModal.style.display = 'none';
+    });
+    elements.closeModelsPathModal.addEventListener('click', () => {
+        elements.modelsPathModal.style.display = 'none';
+    });
+    
+    // Enter 鍵儲存模型路徑
+    elements.newModelsPath.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            saveModelsPath();
+        }
+    });
+    
     // 點擊模態框外部關閉
     window.addEventListener('click', (event) => {
         if (event.target === elements.apiKeyModal) {
@@ -707,6 +827,9 @@ function setupEventListeners() {
         if (event.target === elements.addNodeModal) {
             elements.addNodeModal.style.display = 'none';
             elements.nodeIpInput.value = '';
+        }
+        if (event.target === elements.modelsPathModal) {
+            elements.modelsPathModal.style.display = 'none';
         }
     });
     
@@ -723,7 +846,13 @@ function setupEventListeners() {
             document.querySelectorAll('.log-panel').forEach(panel => {
                 panel.classList.remove('active');
             });
-            document.getElementById(`${tabName}-log`).classList.add('active');
+            const activePanel = document.getElementById(`${tabName}-log`);
+            activePanel.classList.add('active');
+            
+            // 切換標籤後自動滾動到底部
+            setTimeout(() => {
+                activePanel.scrollTop = activePanel.scrollHeight;
+            }, 50);
         });
     });
     
@@ -766,19 +895,39 @@ function setupEventListeners() {
     });
     
     window.electronAPI.onRpcServerLog((event, data) => {
-        logMessage('RPC', data.trim(), 'info');
+        const lines = data.trim().split('\n');
+        lines.forEach(line => {
+            if (line.trim()) {
+                logMessage('RPC', line.trim(), 'info');
+            }
+        });
     });
     
     window.electronAPI.onRpcServerError((event, data) => {
-        logMessage('RPC', data.trim(), 'error');
+        const lines = data.trim().split('\n');
+        lines.forEach(line => {
+            if (line.trim()) {
+                logMessage('RPC', line.trim(), 'error');
+            }
+        });
     });
     
     window.electronAPI.onApiServerLog((event, data) => {
-        logMessage('API', data.trim(), 'info');
+        const lines = data.trim().split('\n');
+        lines.forEach(line => {
+            if (line.trim()) {
+                logMessage('API', line.trim(), 'info');
+            }
+        });
     });
     
     window.electronAPI.onApiServerError((event, data) => {
-        logMessage('API', data.trim(), 'error');
+        const lines = data.trim().split('\n');
+        lines.forEach(line => {
+            if (line.trim()) {
+                logMessage('API', line.trim(), 'error');
+            }
+        });
     });
 }
 

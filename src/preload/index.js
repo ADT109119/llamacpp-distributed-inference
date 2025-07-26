@@ -13,6 +13,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getApiKey: () => ipcRenderer.invoke('get-api-key'),
   setApiKey: (apiKey) => ipcRenderer.invoke('set-api-key', apiKey),
   
+  // 模型路徑管理
+  getModelsPath: () => ipcRenderer.invoke('get-models-path'),
+  setModelsPath: (path) => ipcRenderer.invoke('set-models-path', path),
+  resetModelsPath: () => ipcRenderer.invoke('reset-models-path'),
+  browseModelsFolder: () => ipcRenderer.invoke('browse-models-folder'),
+  openModelsFolder: () => ipcRenderer.invoke('open-models-folder'),
+  
   // 節點發現
   getDiscoveredNodes: () => ipcRenderer.invoke('get-discovered-nodes'),
   getLocalIps: () => ipcRenderer.invoke('get-local-ips'),

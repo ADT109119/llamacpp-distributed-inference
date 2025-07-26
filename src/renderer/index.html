@@ -19,6 +19,9 @@
                 <button id="theme-toggle" class="header-btn" title="切換主題">
                     <i class="theme-icon fas fa-moon"></i>
                 </button>
+                <button id="models-path-btn" class="header-btn" title="模型路徑設定">
+                    <i class="fas fa-folder-open"></i>
+                </button>
                 <button id="settings-btn" class="header-btn" title="設定">
                     <i class="fas fa-cog"></i>
                 </button>
@@ -176,6 +179,40 @@
             <div class="modal-footer">
                 <button id="add-node-confirm" class="btn btn-primary"><i class="fas fa-plus"></i> 添加</button>
                 <button id="add-node-cancel" class="btn btn-secondary">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 模型路徑設定模態框 -->
+    <div id="models-path-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-folder-open"></i> 模型路徑設定</h3>
+                <button class="close-models-path"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <label for="current-models-path">目前模型路徑:</label>
+                <div class="path-display">
+                    <input type="text" id="current-models-path" readonly>
+                    <button id="open-models-folder" class="btn btn-secondary" title="開啟資料夾">
+                        <i class="fas fa-external-link-alt"></i>
+                    </button>
+                </div>
+                
+                <label for="new-models-path">新的模型路徑:</label>
+                <div class="path-input">
+                    <input type="text" id="new-models-path" placeholder="輸入新的模型資料夾路徑">
+                    <button id="browse-models-path" class="btn btn-secondary">
+                        <i class="fas fa-folder"></i> 瀏覽
+                    </button>
+                </div>
+                
+                <p class="help-text">設定模型檔案的存放位置。變更後需要重新載入模型列表。</p>
+            </div>
+            <div class="modal-footer">
+                <button id="save-models-path" class="btn btn-primary"><i class="fas fa-save"></i> 儲存</button>
+                <button id="reset-models-path" class="btn btn-secondary"><i class="fas fa-undo"></i> 重置為預設</button>
+                <button id="cancel-models-path" class="btn btn-secondary">取消</button>
             </div>
         </div>
     </div>

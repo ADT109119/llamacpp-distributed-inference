@@ -277,19 +277,54 @@ function startMdnsDiscovery() {
 }
 
 // IPC 處理器
+// 獲取模型資料夾路徑
+function getModelsPath() {
+  const customPath = store.get('modelsPath');
+  if (customPath) {
+    return customPath;
+  }
+  
+  // 預設路徑：始終在當前執行路徑下的 models 資料夾
+  if (app.isPackaged) {
+    // 打包後：在執行檔同目錄下的 models 資料夾
+    return path.join(path.dirname(process.execPath), 'models');
+  } else {
+    // 開發中：在專案根目錄的 models 資料夾
+    return path.join(process.cwd(), 'models');
+  }
+}
+
 ipcMain.handle('get-models', async () => {
   try {
-    const basePath = app.isPackaged 
-      ? process.resourcesPath
-      : path.join(__dirname, '../..');
-    const modelsPath = path.join(basePath, 'models');
+    const modelsPath = getModelsPath();
+    console.log('Models path:', modelsPath);
     
-    // 檢查 models 目錄是否存在
+    // 檢查 models 目錄是否存在，不存在則創建
     try {
       await fs.access(modelsPath);
     } catch {
-      // 如果目錄不存在，創建它
+      console.log('Creating models directory:', modelsPath);
       await fs.mkdir(modelsPath, { recursive: true });
+      
+      // 創建說明檔案
+      const readmePath = path.join(modelsPath, 'README.md');
+      const readmeContent = `# 模型資料夾
+
+請將您的 GGUF 格式模型檔案放置在此資料夾中。
+
+## 支援的模型格式
+- \`.gguf\` 檔案
+
+## 建議的模型來源
+- [Hugging Face](https://huggingface.co/models?library=gguf)
+- [TheBloke 的量化模型](https://huggingface.co/TheBloke)
+
+## 注意事項
+- 模型檔案可能很大（數 GB），請確保有足夠的磁碟空間
+- 較大的模型需要更多的 RAM 和 VRAM
+- 建議使用量化版本（如 Q4_K_M）以節省記憶體`;
+      
+      await fs.writeFile(readmePath, readmeContent, 'utf8');
       return [];
     }
     
@@ -298,6 +333,70 @@ ipcMain.handle('get-models', async () => {
   } catch (error) {
     console.error('Error getting models:', error);
     return [];
+  }
+});
+
+ipcMain.handle('get-models-path', async () => {
+  return getModelsPath();
+});
+
+ipcMain.handle('set-models-path', async (event, newPath) => {
+  try {
+    // 驗證路徑是否存在
+    await fs.access(newPath);
+    
+    // 儲存新路徑
+    store.set('modelsPath', newPath);
+    
+    return { success: true, message: `模型路徑已設定為: ${newPath}` };
+  } catch (error) {
+    return { success: false, message: `無效的路徑: ${newPath}` };
+  }
+});
+
+ipcMain.handle('reset-models-path', async () => {
+  store.delete('modelsPath');
+  const defaultPath = getModelsPath();
+  return { success: true, message: `已重置為預設路徑: ${defaultPath}` };
+});
+
+ipcMain.handle('browse-models-folder', async () => {
+  try {
+    const { dialog } = await import('electron');
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openDirectory'],
+      title: '選擇模型資料夾',
+      defaultPath: getModelsPath()
+    });
+    
+    if (!result.canceled && result.filePaths.length > 0) {
+      return { success: true, path: result.filePaths[0] };
+    } else {
+      return { success: false, message: '未選擇資料夾' };
+    }
+  } catch (error) {
+    return { success: false, message: `選擇資料夾失敗: ${error.message}` };
+  }
+});
+
+ipcMain.handle('open-models-folder', async () => {
+  try {
+    const { shell } = await import('electron');
+    const modelsPath = getModelsPath();
+    
+    // 確保資料夾存在
+    try {
+      await fs.access(modelsPath);
+    } catch {
+      // 如果資料夾不存在，創建它
+      await fs.mkdir(modelsPath, { recursive: true });
+    }
+    
+    // 開啟資料夾
+    await shell.openPath(modelsPath);
+    return { success: true, message: `已開啟資料夾: ${modelsPath}` };
+  } catch (error) {
+    return { success: false, message: `開啟資料夾失敗: ${error.message}` };
   }
 });
 
@@ -322,7 +421,7 @@ ipcMain.handle('start-api-server', async (event, options) => {
       : path.join(__dirname, '../..');
 
     const serverPath = path.join(basePath, 'bin', osMap[platform], binaryName);
-    const modelPath = path.join(basePath, 'models', modelName);
+    const modelPath = path.join(getModelsPath(), modelName);
 
     // 過濾掉本機IP，因為API伺服器本身就會參與計算
     const filteredRpcNodes = rpcNodes.filter(ip => ip !== '127.0.0.1' && ip !== 'localhost');

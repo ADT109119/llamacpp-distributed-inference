@@ -56,7 +56,7 @@ jobs:
         mkdir -p bin/windows bin/macos bin/linux
         
         # 設定下載 URL（可以在這裡修改版本或檔案名稱）
-        LLAMACPP_VERSION="master"  # 可改為特定版本如 "b3259"
+        LLAMACPP_VERSION="b5997"  # 可改為特定版本如 "b3259"
         
         if [ "${{ matrix.os }}" = "windows-latest" ]; then
           # Windows CUDA 版本

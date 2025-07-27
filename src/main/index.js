@@ -402,7 +402,7 @@ ipcMain.handle('open-models-folder', async () => {
 
 ipcMain.handle('start-api-server', async (event, options) => {
   try {
-    const { modelName, apiKey, rpcNodes, ngl, np } = options;
+    const { modelName, apiKey, rpcNodes, ngl, np, ctxSize, flashAttention, cacheTypeK, cacheTypeV } = options;
     
     if (apiServerProcess) {
       return { success: false, message: 'API 伺服器已在運行中' };
@@ -451,6 +451,22 @@ ipcMain.handle('start-api-server', async (event, options) => {
 
     if (np && np > 0) {
       args.push('-np', np.toString());
+    }
+
+    if (ctxSize && ctxSize > 0) {
+      args.push('--ctx-size', ctxSize.toString());
+    }
+
+    if (flashAttention) {
+      args.push('-fa');
+    }
+
+    if (cacheTypeK && cacheTypeK !== 'f16') {
+      args.push('-ctk', cacheTypeK);
+    }
+
+    if (cacheTypeV && cacheTypeV !== 'f16') {
+      args.push('-ctv', cacheTypeV);
     }
 
     console.log('Starting API server with args:', args);

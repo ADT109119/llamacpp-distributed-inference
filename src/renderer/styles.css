@@ -735,6 +735,73 @@ body.dark-mode .modern-select:focus {
     font-size: 0.9em;
 }
 
+/* 進階設定樣式 */
+.advanced-settings {
+    margin-top: 20px;
+    border: 1px solid #d0d0d0;
+    border-radius: 8px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.advanced-settings-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    background: #f8f8f8;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
+}
+
+.advanced-settings-header:hover {
+    background: #e8e8e8;
+}
+
+.advanced-settings-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #1a1a1a;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.toggle-icon {
+    transition: transform 0.3s ease;
+    color: #6c757d;
+}
+
+.advanced-settings-header.expanded .toggle-icon {
+    transform: rotate(180deg);
+}
+
+.advanced-settings-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+    background: #ffffff;
+}
+
+.advanced-settings-content.expanded {
+    max-height: 1000px;
+    padding: 20px;
+}
+
+.control-description {
+    font-size: 12px;
+    color: #6c757d;
+    margin-top: 4px;
+    font-style: italic;
+}
+
+.checkbox-input {
+    margin-right: 8px;
+    transform: scale(1.2);
+}
+
 .gpu-input:focus {
     outline: none;
     border-color: #2563eb;
@@ -761,6 +828,35 @@ body.dark-mode .gpu-input {
 
 body.dark-mode .gpu-input:focus {
     border-color: #7AA2F7;
+}
+
+/* 深色模式進階設定 */
+body.dark-mode .advanced-settings {
+    border: 1px solid #414868;
+}
+
+body.dark-mode .advanced-settings-header {
+    background: #24283B;
+}
+
+body.dark-mode .advanced-settings-header:hover {
+    background: #414868;
+}
+
+body.dark-mode .advanced-settings-header h3 {
+    color: #C0CAF5;
+}
+
+body.dark-mode .advanced-settings-content {
+    background: #1A1B26;
+}
+
+body.dark-mode .control-description {
+    color: #A9B1D6;
+}
+
+body.dark-mode .toggle-icon {
+    color: #A9B1D6;
 }
 
 .main-action-btn {

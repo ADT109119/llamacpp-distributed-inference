@@ -104,16 +104,69 @@
                     <div class="control-item">
                         <label for="gpu-layers">GPU Layers (-ngl)</label>
                         <div class="slider-container">
-                            <input type="range" id="gpu-slider" min="0" max="100" value="35" class="gpu-slider">
-                            <input type="number" id="gpu-layers" value="35" min="0" max="100" class="gpu-input">
+                            <input type="range" id="gpu-slider" min="0" max="200" value="35" class="gpu-slider">
+                            <input type="number" id="gpu-layers" value="35" min="0" class="gpu-input">
                         </div>
                     </div>
                     
                     <div class="control-item">
-                        <label for="parallel-requests">並行請求數 (-np)</label>
+                        <label for="context-size">Context Size (--ctx-size)</label>
                         <div class="slider-container">
-                            <input type="range" id="parallel-slider" min="1" max="16" value="1" class="gpu-slider">
-                            <input type="number" id="parallel-requests" value="1" min="1" max="16" class="gpu-input">
+                            <input type="range" id="context-slider" min="512" max="131072" value="2048" step="512" class="gpu-slider">
+                            <input type="number" id="context-size" value="2048" min="512" step="512" class="gpu-input">
+                        </div>
+                    </div>
+                    
+                    <!-- 進階設定區域 -->
+                    <div class="advanced-settings">
+                        <div class="advanced-settings-header" id="advanced-settings-toggle">
+                            <h3><i class="fas fa-cogs"></i> 進階設定</h3>
+                            <i class="fas fa-chevron-down toggle-icon"></i>
+                        </div>
+                        <div class="advanced-settings-content" id="advanced-settings-content">
+                            <div class="control-item">
+                                <label for="parallel-requests">並行請求數 (-np)</label>
+                                <div class="slider-container">
+                                    <input type="range" id="parallel-slider" min="1" max="100" value="1" class="gpu-slider">
+                                    <input type="number" id="parallel-requests" value="1" min="1" class="gpu-input">
+                                </div>
+                            </div>
+                            
+                            <div class="control-item">
+                                <label for="flash-attention">
+                                    <input type="checkbox" id="flash-attention" class="checkbox-input">
+                                    Flash Attention (-fa)
+                                </label>
+                                <div class="control-description">啟用 Flash Attention 以提升性能（預設：停用）</div>
+                            </div>
+                            
+                            <div class="control-item">
+                                <label for="cache-type-k">KV Cache Type K (-ctk)</label>
+                                <select id="cache-type-k" class="modern-select">
+                                    <option value="f16">f16 (預設)</option>
+                                    <option value="f32">f32</option>
+                                    <option value="q8_0">q8_0</option>
+                                    <option value="q4_0">q4_0</option>
+                                    <option value="q4_1">q4_1</option>
+                                    <option value="iq4_nl">iq4_nl</option>
+                                    <option value="q5_0">q5_0</option>
+                                    <option value="q5_1">q5_1</option>
+                                </select>
+                            </div>
+                            
+                            <div class="control-item">
+                                <label for="cache-type-v">KV Cache Type V (-ctv)</label>
+                                <select id="cache-type-v" class="modern-select">
+                                    <option value="f16">f16 (預設)</option>
+                                    <option value="f32">f32</option>
+                                    <option value="q8_0">q8_0</option>
+                                    <option value="q4_0">q4_0</option>
+                                    <option value="q4_1">q4_1</option>
+                                    <option value="iq4_nl">iq4_nl</option>
+                                    <option value="q5_0">q5_0</option>
+                                    <option value="q5_1">q5_1</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                     

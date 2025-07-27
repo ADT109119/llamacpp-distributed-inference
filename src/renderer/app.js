@@ -17,6 +17,13 @@ const elements = {
     gpuSlider: document.getElementById('gpu-slider'),
     parallelRequests: document.getElementById('parallel-requests'),
     parallelSlider: document.getElementById('parallel-slider'),
+    contextSize: document.getElementById('context-size'),
+    contextSlider: document.getElementById('context-slider'),
+    flashAttention: document.getElementById('flash-attention'),
+    cacheTypeK: document.getElementById('cache-type-k'),
+    cacheTypeV: document.getElementById('cache-type-v'),
+    advancedSettingsToggle: document.getElementById('advanced-settings-toggle'),
+    advancedSettingsContent: document.getElementById('advanced-settings-content'),
     mainActionBtn: document.getElementById('main-action-btn'),
     themeToggle: document.getElementById('theme-toggle'),
     modelsPathBtn: document.getElementById('models-path-btn'),
@@ -439,6 +446,10 @@ async function startApiServer() {
     const modelName = elements.modelSelect.value;
     const ngl = parseInt(elements.gpuLayers.value) || 0;
     const np = parseInt(elements.parallelRequests.value) || 1;
+    const ctxSize = parseInt(elements.contextSize.value) || 2048;
+    const flashAttention = elements.flashAttention.checked;
+    const cacheTypeK = elements.cacheTypeK.value;
+    const cacheTypeV = elements.cacheTypeV.value;
     const apiKey = elements.apiKeyInput.value;
     
     if (!modelName) {
@@ -462,7 +473,11 @@ async function startApiServer() {
             apiKey,
             rpcNodes: rpcNodes, // 使用過濾後的RPC節點
             ngl,
-            np
+            np,
+            ctxSize,
+            flashAttention,
+            cacheTypeK,
+            cacheTypeV
         });
         
         if (result.success) {
@@ -470,6 +485,10 @@ async function startApiServer() {
             logMessage('系統', `使用模型: ${modelName}`, 'info');
             logMessage('系統', `GPU 層數: ${ngl}`, 'info');
             logMessage('系統', `並行請求數: ${np}`, 'info');
+            logMessage('系統', `Context Size: ${ctxSize}`, 'info');
+            logMessage('系統', `Flash Attention: ${flashAttention ? '啟用' : '停用'}`, 'info');
+            logMessage('系統', `KV Cache Type K: ${cacheTypeK}`, 'info');
+            logMessage('系統', `KV Cache Type V: ${cacheTypeV}`, 'info');
             logMessage('系統', `RPC節點: ${rpcNodes.join(', ') || '無'}`, 'info');
             logMessage('系統', `本機作為API伺服器參與計算`, 'info');
         } else {
@@ -505,9 +524,9 @@ function syncGpuControls() {
     });
     
     elements.gpuLayers.addEventListener('input', (e) => {
-        const value = Math.max(0, Math.min(100, parseInt(e.target.value) || 0));
+        const value = Math.max(0, parseInt(e.target.value) || 0);
         elements.gpuLayers.value = value;
-        elements.gpuSlider.value = value;
+        elements.gpuSlider.value = Math.min(value, 200); // 滑動條最大值限制為200，但輸入框無限制
     });
     
     // 並行請求數控制
@@ -516,9 +535,39 @@ function syncGpuControls() {
     });
     
     elements.parallelRequests.addEventListener('input', (e) => {
-        const value = Math.max(1, Math.min(16, parseInt(e.target.value) || 1));
+        const value = Math.max(1, parseInt(e.target.value) || 1);
         elements.parallelRequests.value = value;
-        elements.parallelSlider.value = value;
+        elements.parallelSlider.value = Math.min(value, 100); // 滑動條最大值限制為100，但輸入框無限制
+    });
+    
+    // Context Size 控制
+    elements.contextSlider.addEventListener('input', (e) => {
+        elements.contextSize.value = e.target.value;
+    });
+    
+    elements.contextSize.addEventListener('input', (e) => {
+        const value = Math.max(512, parseInt(e.target.value) || 2048);
+        // 確保值是512的倍數
+        const roundedValue = Math.round(value / 512) * 512;
+        elements.contextSize.value = roundedValue;
+        elements.contextSlider.value = Math.min(roundedValue, 131072); // 滑動條最大值限制為128K，但輸入框無限制
+    });
+}
+
+// 設定進階設定摺疊功能
+function setupAdvancedSettings() {
+    elements.advancedSettingsToggle.addEventListener('click', () => {
+        const header = elements.advancedSettingsToggle;
+        const content = elements.advancedSettingsContent;
+        
+        header.classList.toggle('expanded');
+        content.classList.toggle('expanded');
+        
+        if (content.classList.contains('expanded')) {
+            logMessage('系統', '已展開進階設定', 'info');
+        } else {
+            logMessage('系統', '已收合進階設定', 'info');
+        }
     });
 }
 
@@ -762,6 +811,9 @@ function setupEventListeners() {
     
     // GPU 控制同步
     syncGpuControls();
+    
+    // 進階設定摺疊功能
+    setupAdvancedSettings();
     
     // API Key 模態框事件
     elements.saveApiKeyBtn.addEventListener('click', saveApiKey);

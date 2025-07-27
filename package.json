@@ -1,6 +1,6 @@
 {
   "name": "llamacpp-distributed-inference",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "分佈式 LLM 推理桌面應用程式",
   "main": "src/main/index.js",
   "type": "module",

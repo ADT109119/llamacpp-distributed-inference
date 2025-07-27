@@ -60,7 +60,7 @@ jobs:
         
         if [ "${{ matrix.os }}" = "windows-latest" ]; then
           # Windows CUDA 版本
-          DOWNLOAD_URL="https://github.com/ggml-org/llama.cpp/releases/latest/download/llama-${LLAMACPP_VERSION}-bin-win-cuda-cu12.2.0-x64.zip"
+          DOWNLOAD_URL="https://github.com/ggml-org/llama.cpp/releases/${LLAMACPP_VERSION}/download/llama-${LLAMACPP_VERSION}-bin-win-cuda-cu12.2.0-x64.zip"
           EXTRACT_DIR="llama-${LLAMACPP_VERSION}-bin-win-cuda-cu12.2.0-x64"
           
           echo "Downloading Windows binaries from: $DOWNLOAD_URL"
@@ -84,7 +84,7 @@ jobs:
           
         elif [ "${{ matrix.os }}" = "macos-latest" ]; then
           # macOS ARM64 版本
-          DOWNLOAD_URL="https://github.com/ggml-org/llama.cpp/releases/latest/download/llama-${LLAMACPP_VERSION}-bin-macos-arm64.zip"
+          DOWNLOAD_URL="https://github.com/ggml-org/llama.cpp/releases/${LLAMACPP_VERSION}/download/llama-${LLAMACPP_VERSION}-bin-macos-arm64.zip"
           EXTRACT_DIR="llama-${LLAMACPP_VERSION}-bin-macos-arm64"
           
           echo "Downloading macOS binaries from: $DOWNLOAD_URL"
@@ -108,7 +108,7 @@ jobs:
           
         else
           # Linux x64 版本
-          DOWNLOAD_URL="https://github.com/ggml-org/llama.cpp/releases/latest/download/llama-${LLAMACPP_VERSION}-bin-ubuntu-vulkan-x64.zip"
+          DOWNLOAD_URL="https://github.com/ggml-org/llama.cpp/releases/${LLAMACPP_VERSION}/download/llama-${LLAMACPP_VERSION}-bin-ubuntu-vulkan-x64.zip"
           EXTRACT_DIR="llama-${LLAMACPP_VERSION}-bin-ubuntu-x64"
           
           echo "Downloading Linux binaries from: $DOWNLOAD_URL"

@@ -1,0 +1,265 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+      llamacpp_version:
+        description: 'llama.cpp version to download (e.g., b3259)'
+        required: false
+        default: 'latest'
+      windows_binary_url:
+        description: 'Custom Windows binary URL (optional)'
+        required: false
+      macos_binary_url:
+        description: 'Custom macOS binary URL (optional)'
+        required: false
+      linux_binary_url:
+        description: 'Custom Linux binary URL (optional)'
+        required: false
+
+env:
+  LLAMACPP_VERSION: ${{ github.event.inputs.llamacpp_version || 'b5997' }}
+  WINDOWS_BINARY_URL: ${{ github.event.inputs.windows_binary_url || '' }}
+  MACOS_BINARY_URL: ${{ github.event.inputs.macos_binary_url || '' }}
+  LINUX_BINARY_URL: ${{ github.event.inputs.linux_binary_url || '' }}
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+        
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Download llama.cpp binaries
+      run: |
+        mkdir -p bin/windows bin/macos bin/linux
+        
+        # 設定下載 URL（可以在這裡修改版本或檔案名稱）
+        LLAMACPP_VERSION="master"  # 可改為特定版本如 "b3259"
+        
+        if [ "${{ matrix.os }}" = "windows-latest" ]; then
+          # Windows CUDA 版本
+          DOWNLOAD_URL="https://github.com/ggml-org/llama.cpp/releases/latest/download/llama-${LLAMACPP_VERSION}-bin-win-cuda-cu12.2.0-x64.zip"
+          EXTRACT_DIR="llama-${LLAMACPP_VERSION}-bin-win-cuda-cu12.2.0-x64"
+          
+          echo "Downloading Windows binaries from: $DOWNLOAD_URL"
+          curl -L -o llama-cpp.zip "$DOWNLOAD_URL"
+          
+          if [ $? -eq 0 ]; then
+            unzip -q llama-cpp.zip
+            if [ -d "$EXTRACT_DIR" ]; then
+              cp "$EXTRACT_DIR/rpc-server.exe" bin/windows/ 2>/dev/null || echo "Warning: rpc-server.exe not found"
+              cp "$EXTRACT_DIR/llama-server.exe" bin/windows/ 2>/dev/null || echo "Warning: llama-server.exe not found"
+              cp "$EXTRACT_DIR"/*.dll bin/windows/ 2>/dev/null || echo "Warning: DLL files not found"
+              echo "Windows binaries copied successfully"
+            else
+              echo "Error: Extract directory $EXTRACT_DIR not found"
+              ls -la
+            fi
+          else
+            echo "Error: Failed to download Windows binaries"
+            exit 1
+          fi
+          
+        elif [ "${{ matrix.os }}" = "macos-latest" ]; then
+          # macOS ARM64 版本
+          DOWNLOAD_URL="https://github.com/ggml-org/llama.cpp/releases/latest/download/llama-${LLAMACPP_VERSION}-bin-macos-arm64.zip"
+          EXTRACT_DIR="llama-${LLAMACPP_VERSION}-bin-macos-arm64"
+          
+          echo "Downloading macOS binaries from: $DOWNLOAD_URL"
+          curl -L -o llama-cpp.zip "$DOWNLOAD_URL"
+          
+          if [ $? -eq 0 ]; then
+            unzip -q llama-cpp.zip
+            if [ -d "$EXTRACT_DIR" ]; then
+              cp "$EXTRACT_DIR/rpc-server" bin/macos/ 2>/dev/null || echo "Warning: rpc-server not found"
+              cp "$EXTRACT_DIR/llama-server" bin/macos/ 2>/dev/null || echo "Warning: llama-server not found"
+              chmod +x bin/macos/* 2>/dev/null
+              echo "macOS binaries copied successfully"
+            else
+              echo "Error: Extract directory $EXTRACT_DIR not found"
+              ls -la
+            fi
+          else
+            echo "Error: Failed to download macOS binaries"
+            exit 1
+          fi
+          
+        else
+          # Linux x64 版本
+          DOWNLOAD_URL="https://github.com/ggml-org/llama.cpp/releases/latest/download/llama-${LLAMACPP_VERSION}-bin-ubuntu-vulkan-x64.zip"
+          EXTRACT_DIR="llama-${LLAMACPP_VERSION}-bin-ubuntu-x64"
+          
+          echo "Downloading Linux binaries from: $DOWNLOAD_URL"
+          curl -L -o llama-cpp.zip "$DOWNLOAD_URL"
+          
+          if [ $? -eq 0 ]; then
+            unzip -q llama-cpp.zip
+            if [ -d "$EXTRACT_DIR" ]; then
+              cp "$EXTRACT_DIR/rpc-server" bin/linux/ 2>/dev/null || echo "Warning: rpc-server not found"
+              cp "$EXTRACT_DIR/llama-server" bin/linux/ 2>/dev/null || echo "Warning: llama-server not found"
+              chmod +x bin/linux/* 2>/dev/null
+              echo "Linux binaries copied successfully"
+            else
+              echo "Error: Extract directory $EXTRACT_DIR not found"
+              ls -la
+            fi
+          else
+            echo "Error: Failed to download Linux binaries"
+            exit 1
+          fi
+        fi
+        
+        # 驗證檔案是否存在
+        echo "Verifying downloaded binaries:"
+        ls -la bin/*/
+      shell: bash
+      
+    - name: Build Electron app
+      run: npm run build
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: dist-${{ matrix.os }}
+        path: dist/
+        retention-days: 7
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: dist-all/
+        
+    - name: Prepare release assets
+      run: |
+        mkdir -p release-assets
+        
+        # Windows
+        if [ -d "dist-all/dist-windows-latest" ]; then
+          cd dist-all/dist-windows-latest
+          if [ -f *.exe ]; then
+            cp *.exe ../../release-assets/distributed-llm-inference-windows.exe
+          fi
+          if [ -d "win-unpacked" ]; then
+            cd win-unpacked
+            zip -r ../../../release-assets/distributed-llm-inference-windows.zip .
+            cd ..
+          fi
+          cd ../..
+        fi
+        
+        # macOS
+        if [ -d "dist-all/dist-macos-latest" ]; then
+          cd dist-all/dist-macos-latest
+          if [ -f *.dmg ]; then
+            cp *.dmg ../../release-assets/distributed-llm-inference-macos.dmg
+          fi
+          if [ -d "mac" ]; then
+            cd mac
+            zip -r ../../../release-assets/distributed-llm-inference-macos.zip .
+            cd ..
+          fi
+          cd ../..
+        fi
+        
+        # Linux
+        if [ -d "dist-all/dist-ubuntu-latest" ]; then
+          cd dist-all/dist-ubuntu-latest
+          if [ -f *.AppImage ]; then
+            cp *.AppImage ../../release-assets/distributed-llm-inference-linux.AppImage
+          fi
+          if [ -d "linux-unpacked" ]; then
+            cd linux-unpacked
+            tar -czf ../../../release-assets/distributed-llm-inference-linux.tar.gz .
+            cd ..
+          fi
+          cd ../..
+        fi
+        
+    - name: Get version
+      id: version
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+        else
+          echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.version.outputs.version }}
+        name: Release ${{ steps.version.outputs.version }}
+        draft: true
+        prerelease: false
+        body: |
+          ## 🚀 分佈式 LLM 推理桌面應用程式 ${{ steps.version.outputs.version }}
+          
+          ### 📦 下載說明
+          
+          - **Windows**: `distributed-llm-inference-windows.exe` (安裝程式) 或 `distributed-llm-inference-windows.zip` (免安裝版)
+          - **macOS**: `distributed-llm-inference-macos.dmg` (安裝程式) 或 `distributed-llm-inference-macos.zip` (免安裝版)
+          - **Linux**: `distributed-llm-inference-linux.AppImage` (可執行檔) 或 `distributed-llm-inference-linux.tar.gz` (免安裝版)
+          
+          ### ⚠️ 重要提醒
+          
+          1. **安全警告**: 請僅在可信的內網環境中使用
+          2. **模型檔案**: 需要自行下載 `.gguf` 格式的模型檔案
+          3. **網路設定**: 確保防火牆開放端口 50052 和 8080
+          
+          ### 🆕 主要功能
+          
+          - 🖥️ 現代化深色/明亮模式介面
+          - 🌐 自動節點發現 + 手動添加
+          - ⚡ 高效分佈式推理
+          - 📁 自定義模型路徑管理
+          - 🔧 並行請求數控制
+          - 📊 實時日誌監控
+          - 🔍 節點連接檢查
+          
+          ### 📋 使用步驟
+          
+          1. 下載對應平台的檔案
+          2. 解壓縮或安裝
+          3. 將 `.gguf` 模型檔案放入 `models/` 資料夾
+          4. 執行程式並開始使用
+          
+          ---
+          
+          **完整說明請參閱**: [README.md](https://github.com/${{ github.repository }}/blob/main/README.md)
+        files: |
+          release-assets/*
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

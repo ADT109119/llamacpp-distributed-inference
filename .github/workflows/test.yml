@@ -1,0 +1,51 @@
+name: Test Build
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+        
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Create dummy binaries for testing
+      run: |
+        mkdir -p bin/windows bin/macos bin/linux
+        
+        if [ "${{ matrix.os }}" = "windows-latest" ]; then
+          echo "dummy" > bin/windows/rpc-server.exe
+          echo "dummy" > bin/windows/llama-server.exe
+        elif [ "${{ matrix.os }}" = "macos-latest" ]; then
+          echo "dummy" > bin/macos/rpc-server
+          echo "dummy" > bin/macos/llama-server
+          chmod +x bin/macos/*
+        else
+          echo "dummy" > bin/linux/rpc-server
+          echo "dummy" > bin/linux/llama-server
+          chmod +x bin/linux/*
+        fi
+      shell: bash
+      
+    - name: Test build
+      run: npm run pack
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

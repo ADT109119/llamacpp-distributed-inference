@@ -1,0 +1,45 @@
+# llama.cpp 二進位檔案下載配置
+# 如需修改下載的版本或檔案，請編輯此檔案
+
+# llama.cpp 版本設定
+LLAMACPP_VERSION: "master"  # 可改為特定版本，如 "b3259"
+
+# 各平台下載 URL 模板
+# 變數 ${LLAMACPP_VERSION} 會被自動替換
+DOWNLOAD_URLS:
+  windows:
+    url: "https://github.com/ggerganov/llama.cpp/releases/latest/download/llama-${LLAMACPP_VERSION}-bin-win-cuda-cu12.2.0-x64.zip"
+    extract_dir: "llama-${LLAMACPP_VERSION}-bin-win-cuda-cu12.2.0-x64"
+    files:
+      - "rpc-server.exe"
+      - "llama-server.exe"
+      - "*.dll"
+  
+  macos:
+    url: "https://github.com/ggerganov/llama.cpp/releases/latest/download/llama-${LLAMACPP_VERSION}-bin-macos-arm64.zip"
+    extract_dir: "llama-${LLAMACPP_VERSION}-bin-macos-arm64"
+    files:
+      - "rpc-server"
+      - "llama-server"
+  
+  linux:
+    url: "https://github.com/ggerganov/llama.cpp/releases/latest/download/llama-${LLAMACPP_VERSION}-bin-ubuntu-x64.zip"
+    extract_dir: "llama-${LLAMACPP_VERSION}-bin-ubuntu-x64"
+    files:
+      - "rpc-server"
+      - "llama-server"
+
+# 備用下載 URL（如果主要 URL 失敗）
+FALLBACK_URLS:
+  windows:
+    - "https://github.com/ggerganov/llama.cpp/releases/download/b3259/llama-b3259-bin-win-cuda-cu12.2.0-x64.zip"
+  macos:
+    - "https://github.com/ggerganov/llama.cpp/releases/download/b3259/llama-b3259-bin-macos-arm64.zip"
+  linux:
+    - "https://github.com/ggerganov/llama.cpp/releases/download/b3259/llama-b3259-bin-ubuntu-x64.zip"
+
+# 使用說明：
+# 1. 修改 LLAMACPP_VERSION 來指定特定版本
+# 2. 如果檔案名稱格式改變，修改對應的 url 和 extract_dir
+# 3. 如果需要其他檔案，在 files 列表中添加
+# 4. 可以在 FALLBACK_URLS 中添加備用下載連結

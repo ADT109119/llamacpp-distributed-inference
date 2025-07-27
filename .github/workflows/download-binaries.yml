@@ -1,0 +1,156 @@
+name: Download llama.cpp Binaries
+
+on:
+  workflow_dispatch:
+    inputs:
+      llamacpp_version:
+        description: 'llama.cpp version to download (e.g., b3259 or latest)'
+        required: true
+        default: 'latest'
+      windows_url:
+        description: 'Custom Windows binary URL (optional)'
+        required: false
+      macos_url:
+        description: 'Custom macOS binary URL (optional)'
+        required: false
+      linux_url:
+        description: 'Custom Linux binary URL (optional)'
+        required: false
+
+jobs:
+  download-binaries:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Download llama.cpp binaries for all platforms
+      run: |
+        # Function to get latest release info
+        get_latest_release() {
+          curl -s "https://api.github.com/repos/ggerganov/llama.cpp/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/'
+        }
+        
+        # Function to download and extract binaries
+        download_platform_binaries() {
+          local platform=$1
+          local url=$2
+          local target_dir=$3
+          
+          echo "Downloading $platform binaries from: $url"
+          
+          # Create target directory
+          mkdir -p "$target_dir"
+          
+          # Download
+          if curl -L -f -o "${platform}-binaries.zip" "$url"; then
+            echo "Download successful for $platform"
+            
+            # Extract
+            unzip -q "${platform}-binaries.zip"
+            
+            # Find and copy binaries
+            find . -name "rpc-server*" -type f | head -1 | xargs -I {} cp {} "$target_dir/rpc-server"
+            find . -name "llama-server*" -type f | head -1 | xargs -I {} cp {} "$target_dir/llama-server"
+            
+            # Handle Windows specifics
+            if [ "$platform" = "windows" ]; then
+              find . -name "*.dll" -type f | xargs -I {} cp {} "$target_dir/" 2>/dev/null || true
+              # Ensure .exe extension
+              if [ -f "$target_dir/rpc-server" ]; then
+                mv "$target_dir/rpc-server" "$target_dir/rpc-server.exe"
+              fi
+              if [ -f "$target_dir/llama-server" ]; then
+                mv "$target_dir/llama-server" "$target_dir/llama-server.exe"
+              fi
+            else
+              # Set executable permissions for Unix systems
+              chmod +x "$target_dir"/* 2>/dev/null || true
+            fi
+            
+            echo "Extraction completed for $platform"
+            ls -la "$target_dir"
+            
+            # Clean up extraction files
+            rm -rf llama-*/ llamacpp-*/ build/ || true
+            rm -f "${platform}-binaries.zip"
+            
+          else
+            echo "Download failed for $platform: $url"
+            return 1
+          fi
+        }
+        
+        # Determine version
+        if [ "${{ github.event.inputs.llamacpp_version }}" = "latest" ]; then
+          VERSION=$(get_latest_release)
+          echo "Using latest version: $VERSION"
+        else
+          VERSION="${{ github.event.inputs.llamacpp_version }}"
+          echo "Using specified version: $VERSION"
+        fi
+        
+        # Create bin directories
+        mkdir -p bin/windows bin/macos bin/linux
+        
+        # Download Windows binaries
+        if [ -n "${{ github.event.inputs.windows_url }}" ]; then
+          WINDOWS_URL="${{ github.event.inputs.windows_url }}"
+        else
+          WINDOWS_URL="https://github.com/ggerganov/llama.cpp/releases/download/$VERSION/llama-$VERSION-bin-win-cuda-cu12.2.0-x64.zip"
+        fi
+        
+        # Download macOS binaries
+        if [ -n "${{ github.event.inputs.macos_url }}" ]; then
+          MACOS_URL="${{ github.event.inputs.macos_url }}"
+        else
+          MACOS_URL="https://github.com/ggerganov/llama.cpp/releases/download/$VERSION/llama-$VERSION-bin-macos-arm64.zip"
+        fi
+        
+        # Download Linux binaries
+        if [ -n "${{ github.event.inputs.linux_url }}" ]; then
+          LINUX_URL="${{ github.event.inputs.linux_url }}"
+        else
+          LINUX_URL="https://github.com/ggerganov/llama.cpp/releases/download/$VERSION/llama-$VERSION-bin-ubuntu-x64.zip"
+        fi
+        
+        # Download all platforms
+        echo "Starting downloads for all platforms..."
+        
+        download_platform_binaries "windows" "$WINDOWS_URL" "bin/windows"
+        download_platform_binaries "macos" "$MACOS_URL" "bin/macos"  
+        download_platform_binaries "linux" "$LINUX_URL" "bin/linux"
+        
+        echo "All downloads completed!"
+        
+        # Show final structure
+        echo "Final bin directory structure:"
+        find bin -type f -exec ls -la {} \;
+        
+    - name: Create Pull Request with binaries
+      uses: peter-evans/create-pull-request@v5
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        commit-message: "Update llama.cpp binaries to version ${{ github.event.inputs.llamacpp_version }}"
+        title: "Update llama.cpp binaries"
+        body: |
+          ## 🔄 llama.cpp 二進位檔案更新
+          
+          **版本**: ${{ github.event.inputs.llamacpp_version }}
+          
+          ### 📦 更新內容
+          - Windows: ${{ github.event.inputs.windows_url || '自動選擇 CUDA 版本' }}
+          - macOS: ${{ github.event.inputs.macos_url || '自動選擇 ARM64 版本' }}
+          - Linux: ${{ github.event.inputs.linux_url || '自動選擇 Ubuntu x64 版本' }}
+          
+          ### ✅ 檢查項目
+          - [ ] Windows 二進位檔案正常
+          - [ ] macOS 二進位檔案正常
+          - [ ] Linux 二進位檔案正常
+          - [ ] 所有必要的 DLL 檔案已包含
+          - [ ] 執行權限設定正確
+          
+          這個 PR 由 GitHub Actions 自動生成。
+        branch: update-llamacpp-binaries
+        delete-branch: true

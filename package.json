@@ -8,7 +8,16 @@
     "start": "electron .",
     "dev": "electron . --dev",
     "build": "electron-builder",
-    "pack": "electron-builder --dir"
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --publish=never",
+    "download-binaries": "node scripts/download-binaries.js",
+    "download-binaries:win": "node scripts/download-binaries.js windows",
+    "download-binaries:mac": "node scripts/download-binaries.js macos",
+    "download-binaries:linux": "node scripts/download-binaries.js linux",
+    "prepare-build": "npm run download-binaries && npm run build"
   },
   "keywords": ["electron", "llm", "distributed", "inference"],
   "author": "The Walking Fish步行魚",

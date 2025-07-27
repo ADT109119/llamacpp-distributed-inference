@@ -67,7 +67,7 @@ jobs:
           curl -L -o llama-cpp.zip "$DOWNLOAD_URL"
           
           if [ $? -eq 0 ]; then
-            unzip -q llama-${LLAMACPP_VERSION}-bin-win-cuda-cu12.2.0-x64.zip
+            unzip -q llama-cpp.zip
             if [ -d "$EXTRACT_DIR" ]; then
               cp "$EXTRACT_DIR/rpc-server.exe" bin/windows/ 2>/dev/null || echo "Warning: rpc-server.exe not found"
               cp "$EXTRACT_DIR/llama-server.exe" bin/windows/ 2>/dev/null || echo "Warning: llama-server.exe not found"
@@ -91,7 +91,7 @@ jobs:
           curl -L -o llama-cpp.zip "$DOWNLOAD_URL"
           
           if [ $? -eq 0 ]; then
-            unzip -q llama-${LLAMACPP_VERSION}-bin-macos-arm64.zip
+            unzip -q llama-cpp.zip
             if [ -d "$EXTRACT_DIR" ]; then
               cp "$EXTRACT_DIR/rpc-server" bin/macos/ 2>/dev/null || echo "Warning: rpc-server not found"
               cp "$EXTRACT_DIR/llama-server" bin/macos/ 2>/dev/null || echo "Warning: llama-server not found"
@@ -115,7 +115,7 @@ jobs:
           curl -L -o llama-cpp.zip "$DOWNLOAD_URL"
           
           if [ $? -eq 0 ]; then
-            unzip -q llama-${LLAMACPP_VERSION}-bin-ubuntu-vulkan-x64.zip
+            unzip -q llama-cpp.zip
             if [ -d "$EXTRACT_DIR" ]; then
               cp "$EXTRACT_DIR/rpc-server" bin/linux/ 2>/dev/null || echo "Warning: rpc-server not found"
               cp "$EXTRACT_DIR/llama-server" bin/linux/ 2>/dev/null || echo "Warning: llama-server not found"

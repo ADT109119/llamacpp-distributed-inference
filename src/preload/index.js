@@ -20,6 +20,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   browseModelsFolder: () => ipcRenderer.invoke('browse-models-folder'),
   openModelsFolder: () => ipcRenderer.invoke('open-models-folder'),
   
+  // RPC server 控制
+  restartRpcServer: () => ipcRenderer.invoke('restart-rpc-server'),
+  
   // 節點發現
   getDiscoveredNodes: () => ipcRenderer.invoke('get-discovered-nodes'),
   getLocalIps: () => ipcRenderer.invoke('get-local-ips'),

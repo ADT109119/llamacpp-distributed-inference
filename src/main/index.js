@@ -50,6 +50,16 @@ function createWindow() {
 
 // 啟動 RPC 伺服器
 function startRpcServer() {
+  // 檢查是否已有 RPC server 在運行
+  if (rpcServerProcess) {
+    console.log('RPC server is already running');
+    // 通知前端 RPC 伺服器狀態
+    setTimeout(() => {
+      mainWindow?.webContents.send('rpc-server-status', true);
+    }, 100);
+    return;
+  }
+  
   const platform = process.platform;
   const osMap = {
     'win32': 'windows',
@@ -81,6 +91,7 @@ function startRpcServer() {
 
     rpcServerProcess.on('close', (code) => {
       console.log(`rpc-server process exited with code ${code}`);
+      rpcServerProcess = null; // 清除進程引用
       mainWindow?.webContents.send('rpc-server-status', false);
     });
 
@@ -91,6 +102,7 @@ function startRpcServer() {
 
   } catch (error) {
     console.error('Failed to start rpc-server:', error);
+    rpcServerProcess = null; // 清除進程引用
     mainWindow?.webContents.send('rpc-server-error', error.message);
   }
 }
@@ -698,6 +710,26 @@ ipcMain.handle('remove-node', async (event, nodeIp) => {
   } catch (error) {
     console.error('Error removing node:', error);
     return { success: false, message: error.message };
+  }
+});
+
+// 重啟 RPC server
+ipcMain.handle('restart-rpc-server', async () => {
+  try {
+    // 停止現有的 RPC server
+    if (rpcServerProcess) {
+      rpcServerProcess.kill();
+      rpcServerProcess = null;
+      console.log('RPC server stopped for restart');
+    }
+    
+    // 重新啟動 RPC server
+    startRpcServer();
+    
+    return { success: true, message: 'RPC server 重啟中...' };
+  } catch (error) {
+    console.error('Failed to restart RPC server:', error);
+    return { success: false, message: `重啟 RPC server 失敗: ${error.message}` };
   }
 });
 

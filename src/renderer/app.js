@@ -29,6 +29,7 @@ const elements = {
     modelsPathBtn: document.getElementById('models-path-btn'),
     settingsBtn: document.getElementById('settings-btn'),
     addNodeBtn: document.getElementById('add-node-btn'),
+    restartRpcBtn: document.getElementById('restart-rpc-btn'),
     apiKeyModal: document.getElementById('api-key-modal'),
     apiKeyInput: document.getElementById('api-key-input'),
     saveApiKeyBtn: document.getElementById('save-api-key'),
@@ -753,6 +754,29 @@ async function saveApiKey() {
     }
 }
 
+// 重啟 RPC server
+async function restartRpcServer() {
+    try {
+        // 顯示正在重啟狀態
+        elements.restartRpcBtn.disabled = true;
+        elements.restartRpcBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 重啟中...';
+        
+        const result = await window.electronAPI.restartRpcServer();
+        
+        if (result.success) {
+            logMessage('系統', result.message, 'success');
+        } else {
+            logMessage('系統', result.message, 'error');
+        }
+    } catch (error) {
+        logMessage('系統', `重啟 RPC server 失敗: ${error.message}`, 'error');
+    } finally {
+        // 恢復按鈕狀態
+        elements.restartRpcBtn.disabled = false;
+        elements.restartRpcBtn.innerHTML = '<i class="fas fa-redo"></i> 重啟 RPC 伺服器';
+    }
+}
+
 // 記錄訊息
 function logMessage(category, message, type = 'info') {
     const timestamp = new Date().toLocaleTimeString();
@@ -806,6 +830,9 @@ function setupEventListeners() {
     elements.settingsBtn.addEventListener('click', () => {
         elements.apiKeyModal.style.display = 'block';
     });
+    
+    // 重啟 RPC server 按鈕
+    elements.restartRpcBtn.addEventListener('click', restartRpcServer);
     
     // 手動添加節點按鈕 (移除重複的事件監聽器)
     

@@ -24,6 +24,9 @@ on:
         description: 'Custom Linux binary URL (optional)'
         required: false
 
+permissions:
+  contents: write
+
 env:
   LLAMACPP_VERSION: ${{ github.event.inputs.llamacpp_version || 'latest' }}
   WINDOWS_BINARY_URL: ${{ github.event.inputs.windows_binary_url || '' }}
@@ -143,9 +146,7 @@ jobs:
       shell: bash
       
     - name: Build Electron app
-      run: npm run build
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: npm run build -- --publish never
         
     - name: Upload artifacts
       uses: actions/upload-artifact@v4

@@ -54,6 +54,10 @@ function createWindow() {
 // ==================== RPC 伺服器管理 ====================
 
 function startRpcServer() {
+  if (getCurrentVersion() === '未安裝') {
+    console.log('llama.cpp is not installed, skipping auto-start of RPC server');
+    return;
+  }
   if (rpcServerProcess) {
     console.log('RPC server is already running');
     setTimeout(() => {
@@ -271,6 +275,9 @@ ipcMain.handle('open-models-folder', async () => {
 
 ipcMain.handle('start-api-server', async (event, options) => {
   try {
+    if (getCurrentVersion() === '未安裝') {
+      return { success: false, message: '尚未安裝 llama.cpp 推理核心，請先下載安裝。' };
+    }
     const {
       modelName, apiKey, rpcNodes, ngl, np, ctxSize,
       flashAttention, cacheTypeK, cacheTypeV,
@@ -444,6 +451,9 @@ ipcMain.handle('remove-node', async (event, nodeIp) => {
 
 ipcMain.handle('restart-rpc-server', async () => {
   try {
+    if (getCurrentVersion() === '未安裝') {
+      return { success: false, message: '尚未安裝 llama.cpp 推理核心，無法重啟 RPC 伺服器。' };
+    }
     if (rpcServerProcess) { rpcServerProcess.kill(); rpcServerProcess = null; }
     startRpcServer();
     return { success: true, message: 'RPC server 重啟中...' };

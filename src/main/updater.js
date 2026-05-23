@@ -10,6 +10,7 @@ import { createWriteStream, existsSync } from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
 import Store from 'electron-store';
+import os from 'os';
 import { getBinDir, getPlatformId } from './utils.js';
 
 const store = new Store();
@@ -19,12 +20,22 @@ const store = new Store();
 const GITHUB_API = 'https://api.github.com/repos/ggml-org/llama.cpp/releases/latest';
 const GITHUB_RELEASES = 'https://github.com/ggml-org/llama.cpp/releases/download';
 
-// 各平台預設變體對應表
-const PLATFORM_DEFAULTS = {
-  windows: 'cuda-12.4',
-  macos: 'arm64',
-  linux: 'x64'
-};
+// 各平台與架構預設變體對應表
+export function getDefaultVariant() {
+  const platform = getPlatformId();
+  const arch = os.arch(); // 'x64', 'arm64', etc.
+  
+  if (platform === 'macos') {
+    return arch === 'arm64' ? 'arm64' : 'x64';
+  }
+  if (platform === 'windows') {
+    return arch === 'arm64' ? 'arm64' : 'cuda-12.4';
+  }
+  if (platform === 'linux') {
+    return arch === 'arm64' ? 'arm64' : 'x64';
+  }
+  return 'x64';
+}
 
 // CUDA DLL 附帶下載映射
 const CUDA_DLL_MAP = {
@@ -69,7 +80,7 @@ export async function getAvailableAssets() {
     return false;
   });
 
-  const defaultVariant = PLATFORM_DEFAULTS[platform];
+  const defaultVariant = getDefaultVariant();
 
   return platformAssets.map(asset => {
     // 從檔名中提取變體標籤

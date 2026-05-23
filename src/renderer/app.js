@@ -494,6 +494,12 @@ async function toggleApiServer() {
 
 // 啟動 API 伺服器
 async function startApiServer() {
+    const version = await window.electronAPI.getCurrentLlamacppVersion();
+    if (version === '未安裝') {
+        alert('尚未安裝 llama.cpp 推理核心，請先下載安裝。');
+        elements.updateBtn.click();
+        return;
+    }
     const modelName = elements.modelSelect.value;
     const ngl = parseInt(elements.gpuLayers.value) || 0;
     const np = parseInt(elements.parallelRequests.value) || 1;
@@ -872,6 +878,12 @@ async function saveApiKey() {
 // 重啟 RPC server
 async function restartRpcServer() {
     try {
+        const version = await window.electronAPI.getCurrentLlamacppVersion();
+        if (version === '未安裝') {
+            alert('尚未安裝 llama.cpp 推理核心，請先下載安裝。');
+            elements.updateBtn.click();
+            return;
+        }
         // 顯示正在重啟狀態
         elements.restartRpcBtn.disabled = true;
         elements.restartRpcBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 重啟中...';
@@ -1131,12 +1143,18 @@ function setupEventListeners() {
     });
 
     // ==================== llama.cpp 更新邏輯 ====================
-    async function checkLlamacppVersion() {
+    async function checkLlamacppVersion(onLaunch = false) {
         try {
             elements.llamacppVersion.textContent = '檢查中...';
             const result = await window.electronAPI.checkLlamacppUpdates();
             if (result.success) {
                 elements.llamacppVersion.textContent = result.currentVersion;
+                if (result.currentVersion === '未安裝') {
+                    if (onLaunch) {
+                        alert('尚未下載安裝 llama.cpp 推理核心，請點擊確定進行下載安裝。');
+                        openUpdateModal();
+                    }
+                }
                 if (result.hasUpdate) {
                     elements.llamacppVersion.innerHTML += ' <span style="color: #ef4444; font-size: 0.8em; margin-left: 5px;">(有更新)</span>';
                     if (elements.inlineUpdateBtn) {
@@ -1382,7 +1400,7 @@ function setupEventListeners() {
     });
 
     // 啟動時檢查版本
-    checkLlamacppVersion();
+    checkLlamacppVersion(true);
 }
 
 // 頁面載入完成後初始化

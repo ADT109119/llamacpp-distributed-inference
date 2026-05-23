@@ -10,6 +10,7 @@ const elements = {
     apiStatus: document.getElementById('api-status'),
     apiUrl: document.getElementById('api-url'),
     nodeCount: document.getElementById('node-count'),
+    llamacppVersion: document.getElementById('llamacpp-version'),
     localIpsContainer: document.getElementById('local-ips-container'),
     nodesContainer: document.getElementById('nodes-container'),
     modelSelect: document.getElementById('model-select'),
@@ -52,7 +53,50 @@ const elements = {
     systemLog: document.getElementById('system-log'),
     rpcLog: document.getElementById('rpc-log'),
     apiLog: document.getElementById('api-log'),
-    tabBtns: document.querySelectorAll('.tab-btn')
+    tabBtns: document.querySelectorAll('.tab-btn'),
+    // Speculative Decoding
+    specEnabled: document.getElementById('spec-enabled'),
+    specOptions: document.getElementById('spec-options'),
+    draftModelSelect: document.getElementById('draft-model-select'),
+    draftGpuLayers: document.getElementById('draft-gpu-layers'),
+    draftGpuSlider: document.getElementById('draft-gpu-slider'),
+    draftMax: document.getElementById('draft-max'),
+    draftMaxSlider: document.getElementById('draft-max-slider'),
+    draftMin: document.getElementById('draft-min'),
+    draftMinSlider: document.getElementById('draft-min-slider'),
+    draftPMin: document.getElementById('draft-p-min'),
+    draftPMinSlider: document.getElementById('draft-p-min-slider'),
+    // llama.cpp 更新
+    updateBtn: document.getElementById('update-btn'),
+    inlineUpdateBtn: document.getElementById('inline-update-btn'),
+    updateModal: document.getElementById('update-modal'),
+    closeUpdateModal: document.querySelector('.close-update-modal'),
+    updateCurrentVersion: document.getElementById('update-current-version'),
+    updateLatestVersion: document.getElementById('update-latest-version'),
+    updateVariantSelect: document.getElementById('update-variant-select'),
+    updateProgressSection: document.getElementById('update-progress-section'),
+    updateProgressBar: document.getElementById('update-progress-bar'),
+    updateProgressText: document.getElementById('update-progress-text'),
+    startUpdateBtn: document.getElementById('start-update-btn'),
+    cancelUpdateBtn: document.getElementById('cancel-update-btn'),
+    // HF 模型下載
+    hfDownloadBtn: document.getElementById('hf-download-btn'),
+    hfModal: document.getElementById('hf-modal'),
+    closeHfModal: document.querySelector('.close-hf-modal'),
+    hfRepoInput: document.getElementById('hf-repo-input'),
+    hfSearchBtn: document.getElementById('hf-search-btn'),
+    hfRepoInfo: document.getElementById('hf-repo-info'),
+    hfRepoName: document.getElementById('hf-repo-name'),
+    hfRepoDownloads: document.getElementById('hf-repo-downloads'),
+    hfVariantsContainer: document.getElementById('hf-variants-container'),
+    hfVariantsList: document.getElementById('hf-variants-list'),
+    hfProgressSection: document.getElementById('hf-progress-section'),
+    hfProgressBar: document.getElementById('hf-progress-bar'),
+    hfProgressText: document.getElementById('hf-progress-text'),
+    hfCurrentFile: document.getElementById('hf-current-file'),
+    hfDownloadSelectedBtn: document.getElementById('hf-download-selected-btn'),
+    hfCancelDownloadBtn: document.getElementById('hf-cancel-download-btn'),
+    hfCloseBtn: document.getElementById('hf-close-btn')
 };
 
 // 初始化應用程式
@@ -93,11 +137,17 @@ async function loadModels() {
             logMessage('系統', `未找到任何模型檔案，模型路徑: ${modelsPath}`, 'info');
         } else {
             elements.modelSelect.innerHTML = '<option value="">請選擇模型...</option>';
+            elements.draftModelSelect.innerHTML = '<option value="">選擇 Draft Model...</option>';
             models.forEach(model => {
                 const option = document.createElement('option');
                 option.value = model;
                 option.textContent = model;
                 elements.modelSelect.appendChild(option);
+                
+                const draftOption = document.createElement('option');
+                draftOption.value = model;
+                draftOption.textContent = model;
+                elements.draftModelSelect.appendChild(draftOption);
             });
             logMessage('系統', `找到 ${models.length} 個模型檔案，路徑: ${modelsPath}`, 'success');
         }
@@ -453,8 +503,21 @@ async function startApiServer() {
     const cacheTypeV = elements.cacheTypeV.value;
     const apiKey = elements.apiKeyInput.value;
     
+    // Speculative Decoding
+    const specEnabled = elements.specEnabled.checked;
+    const draftModel = elements.draftModelSelect.value;
+    const draftNgl = parseInt(elements.draftGpuLayers.value) || 0;
+    const draftMax = parseInt(elements.draftMax.value) || 16;
+    const draftMin = parseInt(elements.draftMin.value) || 0;
+    const draftPMin = parseFloat(elements.draftPMin.value) || 0.75;
+    
     if (!modelName) {
-        alert('請選擇一個模型');
+        alert('請選擇一個主模型');
+        return;
+    }
+    
+    if (specEnabled && !draftModel) {
+        alert('已啟用 Speculative Decoding，請選擇一個 Draft Model');
         return;
     }
     
@@ -472,13 +535,19 @@ async function startApiServer() {
         const result = await window.electronAPI.startApiServer({
             modelName,
             apiKey,
-            rpcNodes: rpcNodes, // 使用過濾後的RPC節點
+            rpcNodes: rpcNodes,
             ngl,
             np,
             ctxSize,
             flashAttention,
             cacheTypeK,
-            cacheTypeV
+            cacheTypeV,
+            specEnabled,
+            draftModel,
+            draftNgl,
+            draftMax,
+            draftMin,
+            draftPMin
         });
         
         if (result.success) {
@@ -552,6 +621,52 @@ function syncGpuControls() {
         const roundedValue = Math.round(value / 512) * 512;
         elements.contextSize.value = roundedValue;
         elements.contextSlider.value = Math.min(roundedValue, 131072); // 滑動條最大值限制為128K，但輸入框無限制
+    });
+    
+    // Speculative Decoding 開關
+    elements.specEnabled.addEventListener('change', (e) => {
+        elements.specOptions.style.display = e.target.checked ? 'block' : 'none';
+    });
+
+    // Draft GPU 層數控制
+    elements.draftGpuSlider.addEventListener('input', (e) => {
+        elements.draftGpuLayers.value = e.target.value;
+    });
+    elements.draftGpuLayers.addEventListener('input', (e) => {
+        const value = Math.max(0, parseInt(e.target.value) || 0);
+        elements.draftGpuLayers.value = value;
+        elements.draftGpuSlider.value = Math.min(value, 200);
+    });
+
+    // Draft Max 控制
+    elements.draftMaxSlider.addEventListener('input', (e) => {
+        elements.draftMax.value = e.target.value;
+    });
+    elements.draftMax.addEventListener('input', (e) => {
+        const value = Math.max(1, parseInt(e.target.value) || 16);
+        elements.draftMax.value = value;
+        elements.draftMaxSlider.value = Math.min(value, 64);
+    });
+
+    // Draft Min 控制
+    elements.draftMinSlider.addEventListener('input', (e) => {
+        elements.draftMin.value = e.target.value;
+    });
+    elements.draftMin.addEventListener('input', (e) => {
+        const value = Math.max(0, parseInt(e.target.value) || 0);
+        elements.draftMin.value = value;
+        elements.draftMinSlider.value = Math.min(value, 32);
+    });
+
+    // Draft P-Min 控制
+    elements.draftPMinSlider.addEventListener('input', (e) => {
+        elements.draftPMin.value = (e.target.value / 100).toFixed(2);
+    });
+    elements.draftPMin.addEventListener('input', (e) => {
+        let value = parseFloat(e.target.value) || 0.75;
+        value = Math.max(0, Math.min(1, value));
+        elements.draftPMin.value = value;
+        elements.draftPMinSlider.value = Math.round(value * 100);
     });
 }
 
@@ -1000,14 +1115,274 @@ function setupEventListeners() {
         });
     });
     
-    window.electronAPI.onApiServerError((event, data) => {
-        const lines = data.trim().split('\n');
-        lines.forEach(line => {
-            if (line.trim()) {
-                logMessage('API', line.trim(), 'error');
+    window.electronAPI.onDownloadProgress((event, data) => {
+        const { percent, message, currentFile, type } = data;
+        
+        if (type === 'llamacpp') {
+            elements.updateProgressText.textContent = message;
+            elements.updateProgressBar.style.width = `${percent}%`;
+        } else if (type === 'hf') {
+            elements.hfProgressText.textContent = message;
+            elements.hfProgressBar.style.width = `${percent}%`;
+            if (currentFile) {
+                elements.hfCurrentFile.textContent = currentFile;
             }
-        });
+        }
     });
+
+    // ==================== llama.cpp 更新邏輯 ====================
+    async function checkLlamacppVersion() {
+        try {
+            elements.llamacppVersion.textContent = '檢查中...';
+            const result = await window.electronAPI.checkLlamacppUpdates();
+            if (result.success) {
+                elements.llamacppVersion.textContent = result.currentVersion;
+                if (result.hasUpdate) {
+                    elements.llamacppVersion.innerHTML += ' <span style="color: #ef4444; font-size: 0.8em; margin-left: 5px;">(有更新)</span>';
+                    if (elements.inlineUpdateBtn) {
+                        elements.inlineUpdateBtn.className = 'btn btn-primary';
+                        elements.inlineUpdateBtn.innerHTML = '<i class="fas fa-arrow-alt-circle-up"></i> 有新更新！';
+                    }
+                } else {
+                    if (elements.inlineUpdateBtn) {
+                        elements.inlineUpdateBtn.className = 'btn btn-secondary';
+                        elements.inlineUpdateBtn.innerHTML = '<i class="fas fa-arrow-alt-circle-up"></i> 更新';
+                    }
+                }
+            } else {
+                elements.llamacppVersion.textContent = '檢查失敗';
+            }
+        } catch (error) {
+            elements.llamacppVersion.textContent = '無法取得版本';
+        }
+    }
+
+    const openUpdateModal = async () => {
+        elements.updateModal.style.display = 'block';
+        elements.updateCurrentVersion.textContent = '載入中...';
+        elements.updateLatestVersion.textContent = '載入中...';
+        elements.updateVariantSelect.innerHTML = '<option value="">載入中...</option>';
+        elements.updateProgressSection.style.display = 'none';
+        elements.startUpdateBtn.disabled = true;
+
+        try {
+            const versionInfo = await window.electronAPI.checkLlamacppUpdates();
+            if (versionInfo.success) {
+                elements.updateCurrentVersion.textContent = versionInfo.currentVersion;
+                elements.updateLatestVersion.textContent = versionInfo.latestVersion;
+                
+                const assetsInfo = await window.electronAPI.getLlamacppAssets();
+                if (assetsInfo.success && assetsInfo.assets.length > 0) {
+                    elements.updateVariantSelect.innerHTML = '';
+                    assetsInfo.assets.forEach(asset => {
+                        const option = document.createElement('option');
+                        option.value = JSON.stringify({ url: asset.downloadUrl, name: asset.name, tag: versionInfo.latestVersion });
+                        const sizeMb = (asset.size / (1024 * 1024)).toFixed(1);
+                        option.textContent = `${asset.label} (${sizeMb} MB)`;
+                        if (asset.isDefault) option.selected = true;
+                        elements.updateVariantSelect.appendChild(option);
+                    });
+                    elements.startUpdateBtn.disabled = false;
+                } else {
+                    elements.updateVariantSelect.innerHTML = '<option value="">無可用更新</option>';
+                }
+            } else {
+                elements.updateCurrentVersion.textContent = '錯誤';
+                elements.updateLatestVersion.textContent = '錯誤';
+            }
+        } catch (error) {
+            logMessage('系統', `更新檢查失敗: ${error.message}`, 'error');
+        }
+    };
+
+    elements.updateBtn.addEventListener('click', openUpdateModal);
+    if (elements.inlineUpdateBtn) {
+        elements.inlineUpdateBtn.addEventListener('click', openUpdateModal);
+    }
+
+    elements.closeUpdateModal.addEventListener('click', () => { elements.updateModal.style.display = 'none'; });
+    elements.cancelUpdateBtn.addEventListener('click', () => { elements.updateModal.style.display = 'none'; });
+
+    elements.startUpdateBtn.addEventListener('click', async () => {
+        const selectedValue = elements.updateVariantSelect.value;
+        if (!selectedValue) return;
+
+        const asset = JSON.parse(selectedValue);
+        elements.updateProgressSection.style.display = 'block';
+        elements.updateProgressText.textContent = '準備下載...';
+        elements.updateProgressBar.style.width = '0%';
+        elements.startUpdateBtn.disabled = true;
+        elements.updateVariantSelect.disabled = true;
+
+        try {
+            const result = await window.electronAPI.downloadLlamacpp(asset.url, asset.name, asset.tag);
+            if (result.success) {
+                alert('更新成功！');
+                checkLlamacppVersion();
+                elements.updateModal.style.display = 'none';
+            } else {
+                alert(`更新失敗: ${result.message}`);
+            }
+        } catch (error) {
+            alert(`更新發生錯誤: ${error.message}`);
+        } finally {
+            elements.startUpdateBtn.disabled = false;
+            elements.updateVariantSelect.disabled = false;
+        }
+    });
+
+    // ==================== Hugging Face 模型下載邏輯 ====================
+    let currentHfVariants = [];
+
+    elements.hfDownloadBtn.addEventListener('click', () => {
+        elements.hfModal.style.display = 'block';
+        elements.hfRepoInput.value = '';
+        elements.hfRepoInfo.style.display = 'none';
+        elements.hfVariantsContainer.style.display = 'none';
+        elements.hfProgressSection.style.display = 'none';
+        elements.hfDownloadSelectedBtn.style.display = 'none';
+        elements.hfCancelDownloadBtn.style.display = 'none';
+    });
+
+    elements.closeHfModal.addEventListener('click', () => { elements.hfModal.style.display = 'none'; });
+    elements.hfCloseBtn.addEventListener('click', () => { elements.hfModal.style.display = 'none'; });
+
+    elements.hfRepoInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') elements.hfSearchBtn.click();
+    });
+
+    elements.hfSearchBtn.addEventListener('click', async () => {
+        const repoId = elements.hfRepoInput.value.trim();
+        if (!repoId) return;
+
+        elements.hfSearchBtn.disabled = true;
+        elements.hfSearchBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 搜尋中';
+        elements.hfRepoInput.disabled = true;
+        elements.hfRepoInfo.style.display = 'none';
+        elements.hfVariantsContainer.style.display = 'none';
+
+        try {
+            const repoInfo = await window.electronAPI.searchHfRepo(repoId);
+            if (!repoInfo.success) {
+                alert(`找不到該倉庫或無權限存取：${repoId}`);
+                return;
+            }
+
+            elements.hfRepoName.textContent = repoInfo.modelId;
+            elements.hfRepoDownloads.innerHTML = `<i class="fas fa-download"></i> ${repoInfo.downloads.toLocaleString()}`;
+            elements.hfRepoInfo.style.display = 'flex';
+
+            const variantsResult = await window.electronAPI.listHfModels(repoId);
+            if (variantsResult.success && variantsResult.variants.length > 0) {
+                currentHfVariants = variantsResult.variants;
+                renderHfVariants(variantsResult.variants);
+                elements.hfVariantsContainer.style.display = 'block';
+            } else {
+                alert('該倉庫中沒有找到任何 GGUF 模型檔案。');
+            }
+        } catch (error) {
+            alert(`搜尋發生錯誤: ${error.message}`);
+        } finally {
+            elements.hfSearchBtn.disabled = false;
+            elements.hfSearchBtn.innerHTML = '<i class="fas fa-search"></i> 搜尋';
+            elements.hfRepoInput.disabled = false;
+            elements.hfRepoInput.focus();
+        }
+    });
+
+    function renderHfVariants(variants) {
+        elements.hfVariantsList.innerHTML = '';
+        
+        variants.forEach((variant, index) => {
+            const sizeGb = (variant.totalSize / (1024 * 1024 * 1024)).toFixed(2);
+            const variantDiv = document.createElement('div');
+            variantDiv.className = 'hf-variant-item';
+            
+            const checkboxId = `variant-checkbox-${index}`;
+            
+            let shardInfo = '';
+            if (variant.isSplit) {
+                shardInfo = `<span class="variant-shards"><i class="fas fa-layer-group"></i> ${variant.shardCount} 個分片</span>`;
+            }
+            
+            variantDiv.innerHTML = `
+                <input type="checkbox" class="variant-checkbox" id="${checkboxId}" data-index="${index}">
+                <div class="variant-info">
+                    <label for="${checkboxId}" class="variant-name">${variant.variant}</label>
+                    <div class="variant-meta">
+                        <span class="variant-size">${sizeGb} GB</span>
+                        ${shardInfo}
+                    </div>
+                </div>
+            `;
+            
+            elements.hfVariantsList.appendChild(variantDiv);
+        });
+
+        // 監聽 Checkbox 變化，控制下載按鈕顯示
+        const checkboxes = document.querySelectorAll('.variant-checkbox');
+        checkboxes.forEach(cb => {
+            cb.addEventListener('change', () => {
+                const anyChecked = Array.from(checkboxes).some(c => c.checked);
+                elements.hfDownloadSelectedBtn.style.display = anyChecked ? 'inline-flex' : 'none';
+            });
+        });
+    }
+
+    elements.hfDownloadSelectedBtn.addEventListener('click', async () => {
+        const checkedBoxes = document.querySelectorAll('.variant-checkbox:checked');
+        if (checkedBoxes.length === 0) return;
+
+        const repoId = elements.hfRepoInput.value.trim();
+        let filesToDownload = [];
+        
+        checkedBoxes.forEach(cb => {
+            const index = cb.dataset.index;
+            const variant = currentHfVariants[index];
+            filesToDownload = filesToDownload.concat(variant.files.map(f => f.name));
+        });
+
+        elements.hfProgressSection.style.display = 'block';
+        elements.hfProgressBar.style.width = '0%';
+        elements.hfProgressText.textContent = '準備下載...';
+        elements.hfCurrentFile.textContent = '';
+        
+        elements.hfDownloadSelectedBtn.style.display = 'none';
+        elements.hfCancelDownloadBtn.style.display = 'inline-flex';
+        
+        // 禁用選項
+        document.querySelectorAll('.variant-checkbox').forEach(cb => cb.disabled = true);
+        elements.hfSearchBtn.disabled = true;
+
+        try {
+            const result = await window.electronAPI.downloadHfModel(repoId, filesToDownload);
+            if (result.success) {
+                alert(`下載完成！共下載 ${result.downloadedFiles.length} 個檔案。`);
+                await loadModels(); // 重新載入模型列表
+                elements.hfModal.style.display = 'none';
+            } else if (result.message === '下載已取消') {
+                alert('已取消下載。');
+            } else {
+                alert(`下載過程發生錯誤: ${result.message}`);
+            }
+        } catch (error) {
+            alert(`下載失敗: ${error.message}`);
+        } finally {
+            elements.hfCancelDownloadBtn.style.display = 'none';
+            document.querySelectorAll('.variant-checkbox').forEach(cb => cb.disabled = false);
+            elements.hfSearchBtn.disabled = false;
+            elements.hfProgressSection.style.display = 'none';
+        }
+    });
+
+    elements.hfCancelDownloadBtn.addEventListener('click', async () => {
+        await window.electronAPI.cancelHfDownload();
+        elements.hfCancelDownloadBtn.disabled = true;
+        elements.hfCancelDownloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 取消中...';
+    });
+
+    // 啟動時檢查版本
+    checkLlamacppVersion();
 }
 
 // 頁面載入完成後初始化

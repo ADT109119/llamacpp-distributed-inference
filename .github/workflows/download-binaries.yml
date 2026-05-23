@@ -29,7 +29,7 @@ jobs:
       run: |
         # Function to get latest release info
         get_latest_release() {
-          curl -s "https://api.github.com/repos/ggerganov/llama.cpp/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/'
+          curl -s "https://api.github.com/repos/ggml-org/llama.cpp/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/'
         }
         
         # Function to download and extract binaries
@@ -43,43 +43,60 @@ jobs:
           # Create target directory
           mkdir -p "$target_dir"
           
-          # Download
-          if curl -L -f -o "${platform}-binaries.zip" "$url"; then
-            echo "Download successful for $platform"
-            
-            # Extract
-            unzip -q "${platform}-binaries.zip"
-            
-            # Find and copy binaries
-            find . -name "rpc-server*" -type f | head -1 | xargs -I {} cp {} "$target_dir/rpc-server"
-            find . -name "llama-server*" -type f | head -1 | xargs -I {} cp {} "$target_dir/llama-server"
-            
-            # Handle Windows specifics
-            if [ "$platform" = "windows" ]; then
-              find . -name "*.dll" -type f | xargs -I {} cp {} "$target_dir/" 2>/dev/null || true
-              # Ensure .exe extension
-              if [ -f "$target_dir/rpc-server" ]; then
-                mv "$target_dir/rpc-server" "$target_dir/rpc-server.exe"
-              fi
-              if [ -f "$target_dir/llama-server" ]; then
-                mv "$target_dir/llama-server" "$target_dir/llama-server.exe"
-              fi
+          # Determine archive type and extract
+          if [[ "$url" == *".zip" ]]; then
+            if curl -L -f -o "temp_archive.zip" "$url"; then
+               unzip -qo "temp_archive.zip" -d extract_temp
             else
-              # Set executable permissions for Unix systems
-              chmod +x "$target_dir"/* 2>/dev/null || true
+               echo "Download failed for $platform: $url"
+               return 1
+            fi
+          elif [[ "$url" == *".tar.gz" ]]; then
+            if curl -L -f -o "temp_archive.tar.gz" "$url"; then
+               mkdir -p extract_temp
+               tar -xzf temp_archive.tar.gz -C extract_temp
+            else
+               echo "Download failed for $platform: $url"
+               return 1
+            fi
+          fi
+          
+          # Find and copy binaries
+          find extract_temp -name "rpc-server*" -type f | head -1 | xargs -I {} cp {} "$target_dir/rpc-server"
+          find extract_temp -name "llama-server*" -type f | head -1 | xargs -I {} cp {} "$target_dir/llama-server"
+          
+          # Handle Windows specifics
+          if [ "$platform" = "windows" ]; then
+            find extract_temp -name "*.dll" -type f | xargs -I {} cp {} "$target_dir/" 2>/dev/null || true
+            # Ensure .exe extension
+            if [ -f "$target_dir/rpc-server" ]; then
+              mv "$target_dir/rpc-server" "$target_dir/rpc-server.exe"
+            fi
+            if [ -f "$target_dir/llama-server" ]; then
+              mv "$target_dir/llama-server" "$target_dir/llama-server.exe"
             fi
             
-            echo "Extraction completed for $platform"
-            ls -la "$target_dir"
-            
-            # Clean up extraction files
-            rm -rf llama-*/ llamacpp-*/ build/ || true
-            rm -f "${platform}-binaries.zip"
-            
+            # Download and extract CUDA DLLs if applicable
+            if [[ "$url" == *"cuda"* ]]; then
+              CUDA_DLL_URL="${url/llama-/cudart-llama-}"
+              echo "Attempting to download CUDA DLLs: $CUDA_DLL_URL"
+              if curl -L -f -o "cuda_dlls.zip" "$CUDA_DLL_URL"; then
+                 unzip -qo cuda_dlls.zip -d extract_temp_cuda
+                 find extract_temp_cuda -name "*.dll" -type f | xargs -I {} cp {} "$target_dir/" 2>/dev/null || true
+                 rm -rf extract_temp_cuda cuda_dlls.zip
+              fi
+            fi
+
           else
-            echo "Download failed for $platform: $url"
-            return 1
+            # Set executable permissions for Unix systems
+            chmod +x "$target_dir"/* 2>/dev/null || true
           fi
+          
+          echo "Extraction completed for $platform"
+          ls -la "$target_dir"
+          
+          # Clean up
+          rm -rf extract_temp temp_archive.zip temp_archive.tar.gz || true
         }
         
         # Determine version
@@ -98,21 +115,21 @@ jobs:
         if [ -n "${{ github.event.inputs.windows_url }}" ]; then
           WINDOWS_URL="${{ github.event.inputs.windows_url }}"
         else
-          WINDOWS_URL="https://github.com/ggerganov/llama.cpp/releases/download/$VERSION/llama-$VERSION-bin-win-cuda-cu12.2.0-x64.zip"
+          WINDOWS_URL="https://github.com/ggml-org/llama.cpp/releases/download/$VERSION/llama-$VERSION-bin-win-cuda-12.4-x64.zip"
         fi
         
         # Download macOS binaries
         if [ -n "${{ github.event.inputs.macos_url }}" ]; then
           MACOS_URL="${{ github.event.inputs.macos_url }}"
         else
-          MACOS_URL="https://github.com/ggerganov/llama.cpp/releases/download/$VERSION/llama-$VERSION-bin-macos-arm64.zip"
+          MACOS_URL="https://github.com/ggml-org/llama.cpp/releases/download/$VERSION/llama-$VERSION-bin-macos-arm64.tar.gz"
         fi
         
         # Download Linux binaries
         if [ -n "${{ github.event.inputs.linux_url }}" ]; then
           LINUX_URL="${{ github.event.inputs.linux_url }}"
         else
-          LINUX_URL="https://github.com/ggerganov/llama.cpp/releases/download/$VERSION/llama-$VERSION-bin-ubuntu-x64.zip"
+          LINUX_URL="https://github.com/ggml-org/llama.cpp/releases/download/$VERSION/llama-$VERSION-bin-ubuntu-x64.tar.gz"
         fi
         
         # Download all platforms

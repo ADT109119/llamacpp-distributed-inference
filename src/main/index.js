@@ -7,21 +7,26 @@ import { Bonjour } from 'bonjour-service';
 import Store from 'electron-store';
 import os from 'os';
 import net from 'net';
+import { getBinaryPath, isLocalAddress } from './utils.js';
+import { checkForUpdates, getAvailableAssets, getCurrentVersion, downloadAndInstall } from './updater.js';
+import { searchRepo, listGGUFFiles, downloadModel, cancelDownload } from './hf-downloader.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// 全域變數
+// ==================== 全域變數 ====================
+
 let mainWindow;
 let rpcServerProcess;
 let apiServerProcess;
 let bonjour;
 let discoveredNodes = new Set();
+let discoveryInterval;
 const store = new Store();
 
-// 創建主視窗
+// ==================== 視窗管理 ====================
+
 function createWindow() {
-  // 設定圖示路徑
   const iconPath = app.isPackaged 
     ? path.join(process.resourcesPath, 'images', 'icon.png')
     : path.join(__dirname, '../../images/icon.png');
@@ -31,7 +36,7 @@ function createWindow() {
     height: 800,
     minWidth: 1200,
     minHeight: 700,
-    icon: iconPath, // 設定視窗圖示
+    icon: iconPath,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -39,41 +44,25 @@ function createWindow() {
     }
   });
 
-  // 載入 HTML 檔案
   mainWindow.loadFile('src/renderer/index.html');
 
-  // 開發模式下開啟開發者工具
   if (process.argv.includes('--dev')) {
     mainWindow.webContents.openDevTools();
   }
 }
 
-// 啟動 RPC 伺服器
+// ==================== RPC 伺服器管理 ====================
+
 function startRpcServer() {
-  // 檢查是否已有 RPC server 在運行
   if (rpcServerProcess) {
     console.log('RPC server is already running');
-    // 通知前端 RPC 伺服器狀態
     setTimeout(() => {
       mainWindow?.webContents.send('rpc-server-status', true);
     }, 100);
     return;
   }
   
-  const platform = process.platform;
-  const osMap = {
-    'win32': 'windows',
-    'darwin': 'macos',
-    'linux': 'linux'
-  };
-  const binaryName = platform === 'win32' ? 'rpc-server.exe' : 'rpc-server';
-  
-  // 處理打包後路徑
-  const basePath = app.isPackaged 
-    ? process.resourcesPath
-    : path.join(__dirname, '../..');
-
-  const rpcServerPath = path.join(basePath, 'bin', osMap[platform], binaryName);
+  const rpcServerPath = getBinaryPath('rpc-server');
 
   try {
     console.log('Starting RPC server at:', rpcServerPath);
@@ -91,23 +80,53 @@ function startRpcServer() {
 
     rpcServerProcess.on('close', (code) => {
       console.log(`rpc-server process exited with code ${code}`);
-      rpcServerProcess = null; // 清除進程引用
+      rpcServerProcess = null;
       mainWindow?.webContents.send('rpc-server-status', false);
     });
 
-    // 通知前端 RPC 伺服器已啟動
     setTimeout(() => {
       mainWindow?.webContents.send('rpc-server-status', true);
     }, 2000);
 
   } catch (error) {
     console.error('Failed to start rpc-server:', error);
-    rpcServerProcess = null; // 清除進程引用
+    rpcServerProcess = null;
     mainWindow?.webContents.send('rpc-server-error', error.message);
   }
 }
 
-// 啟動 mDNS 服務發現
+// ==================== mDNS 節點發現 ====================
+
+/**
+ * 統一的節點過濾與添加邏輯（消除原始程式碼中的重複）
+ * @param {string[]} addresses - mDNS 發現的 IP 地址陣列
+ * @param {string} source - 日誌標記（如 'initial', 'periodic'）
+ */
+function filterAndAddNode(addresses, source) {
+  if (!addresses || addresses.length === 0) return;
+
+  for (const addr of addresses) {
+    // 跳過無效地址：空、全零、link-local、IPv6、非法格式
+    if (!addr || addr === '0.0.0.0' || addr.startsWith('169.254') || addr.includes(':')) continue;
+    if (!/^(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)$/.test(addr)) continue;
+
+    if (isLocalAddress(addr)) {
+      // 本機 IP 統一映射為 127.0.0.1
+      if (!discoveredNodes.has('127.0.0.1')) {
+        discoveredNodes.add('127.0.0.1');
+        console.log(`[${source}] Added localhost node via mDNS`);
+        mainWindow?.webContents.send('node-update', Array.from(discoveredNodes));
+      }
+    } else {
+      if (!discoveredNodes.has(addr)) {
+        discoveredNodes.add(addr);
+        console.log(`[${source}] Added remote node: ${addr}`);
+        mainWindow?.webContents.send('node-update', Array.from(discoveredNodes));
+      }
+    }
+  }
+}
+
 function startMdnsDiscovery() {
   try {
     bonjour = new Bonjour();
@@ -115,172 +134,50 @@ function startMdnsDiscovery() {
     const serviceName = 'LLMNode-' + os.hostname();
 
     console.log('Starting mDNS discovery...');
-    console.log('Service name:', serviceName);
-    console.log('Service type:', serviceType);
 
     // 發布本機服務
     const service = bonjour.publish({ 
-      name: serviceName, 
-      type: serviceType, 
-      port: 50052,
-      txt: {
-        version: '1.0.0',
-        platform: process.platform
-      }
+      name: serviceName, type: serviceType, port: 50052,
+      txt: { version: '1.0.0', platform: process.platform }
     });
-
-    service.on('up', () => {
-      console.log('mDNS service published successfully');
-    });
-
-    service.on('error', (err) => {
-      console.error('mDNS service publish error:', err);
-    });
+    service.on('up', () => console.log('mDNS service published'));
+    service.on('error', (err) => console.error('mDNS publish error:', err));
 
     // 瀏覽網路上的其他服務
-    const browser = bonjour.find({ type: serviceType }, (service) => {
-      console.log('Found service via callback:', service.name, service.addresses);
+    const browser = bonjour.find({ type: serviceType });
+    browser.on('up', (svc) => {
+      console.log('Service up:', svc.name, svc.addresses);
+      filterAndAddNode(svc.addresses, 'initial');
     });
-    
-    browser.on('up', (service) => {
-      console.log('Service up:', service.name, service.addresses);
-      if (service.addresses && service.addresses.length > 0) {
-        service.addresses.forEach(addr => {
-          // 過濾掉無效的地址和IPv6地址
-          if (addr && 
-              addr !== '0.0.0.0' && 
-              !addr.startsWith('169.254') && 
-              !addr.includes(':') && // 排除IPv6
-              /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(addr)) { // 確保是有效的IPv4
-            
-            // 檢查是否為本機IP
-            const interfaces = os.networkInterfaces();
-            let isLocalIp = false;
-            Object.keys(interfaces).forEach(name => {
-              const interfaceList = interfaces[name];
-              if (interfaceList) {
-                interfaceList.forEach(iface => {
-                  if (iface.family === 'IPv4' && iface.address === addr) {
-                    isLocalIp = true;
-                  }
-                });
-              }
-            });
-            
-            // 如果是本機IP，確保 127.0.0.1 存在，其他本機IP都忽略
-            if (isLocalIp) {
-              // 確保 127.0.0.1 在節點列表中
-              if (!discoveredNodes.has('127.0.0.1')) {
-                discoveredNodes.add('127.0.0.1');
-                console.log('Added localhost node via mDNS discovery');
-                mainWindow?.webContents.send('node-update', Array.from(discoveredNodes));
-              }
-              // 其他本機IP (如 192.168.x.x) 都忽略，不添加到節點列表
-              if (addr !== '127.0.0.1') {
-                console.log('Ignored local IP:', addr, '(only 127.0.0.1 allowed for localhost)');
-              }
-            } else {
-              // 非本機IP，正常添加
-              if (!discoveredNodes.has(addr)) {
-                discoveredNodes.add(addr);
-                console.log('Added discovered remote node:', addr);
-                mainWindow?.webContents.send('node-update', Array.from(discoveredNodes));
-              }
-            }
-          }
-        });
-      }
-    });
-    
-    browser.on('down', (service) => {
-      console.log('Service down:', service.name, service.addresses);
-      if (service.addresses && service.addresses.length > 0) {
-        service.addresses.forEach(addr => {
+    browser.on('down', (svc) => {
+      console.log('Service down:', svc.name, svc.addresses);
+      if (svc.addresses) {
+        svc.addresses.forEach(addr => {
           if (discoveredNodes.has(addr)) {
             discoveredNodes.delete(addr);
-            console.log('Removed node:', addr);
             mainWindow?.webContents.send('node-update', Array.from(discoveredNodes));
           }
         });
       }
     });
 
-    // 自動添加 127.0.0.1 作為本機節點選項
+    // 自動添加 localhost
     discoveredNodes.add('127.0.0.1');
-    console.log('Added 127.0.0.1 as localhost option');
-    
-    // 發送初始節點列表
     setTimeout(() => {
       mainWindow?.webContents.send('node-update', Array.from(discoveredNodes));
     }, 1000);
 
-    // 設定定時廣播和搜尋 (每30秒)
-    const discoveryInterval = setInterval(() => {
-      console.log('Performing periodic mDNS discovery...');
-      
-      // 重新搜尋服務
+    // 定時搜尋 (每30秒)
+    discoveryInterval = setInterval(() => {
       const periodicBrowser = bonjour.find({ type: serviceType, protocol: 'tcp' });
-      
-      periodicBrowser.on('up', (service) => {
-        console.log('Periodic discovery - Service up:', service.name, service.addresses);
-        if (service.addresses && service.addresses.length > 0) {
-          service.addresses.forEach(addr => {
-            if (addr && 
-                addr !== '0.0.0.0' && 
-                !addr.startsWith('169.254') && 
-                !addr.includes(':') && 
-                /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(addr)) {
-              
-              const interfaces = os.networkInterfaces();
-              let isLocalIp = false;
-              Object.keys(interfaces).forEach(name => {
-                const interfaceList = interfaces[name];
-                if (interfaceList) {
-                  interfaceList.forEach(iface => {
-                    if (iface.family === 'IPv4' && iface.address === addr) {
-                      isLocalIp = true;
-                    }
-                  });
-                }
-              });
-              
-              if (isLocalIp) {
-                if (!discoveredNodes.has('127.0.0.1')) {
-                  discoveredNodes.add('127.0.0.1');
-                  console.log('Periodic discovery - Added localhost node');
-                  mainWindow?.webContents.send('node-update', Array.from(discoveredNodes));
-                }
-                if (addr !== '127.0.0.1') {
-                  console.log('Periodic discovery - Ignored local IP:', addr);
-                }
-              } else {
-                if (!discoveredNodes.has(addr)) {
-                  discoveredNodes.add(addr);
-                  console.log('Periodic discovery - Added remote node:', addr);
-                  mainWindow?.webContents.send('node-update', Array.from(discoveredNodes));
-                }
-              }
-            }
-          });
-        }
+      periodicBrowser.on('up', (svc) => {
+        filterAndAddNode(svc.addresses, 'periodic');
       });
-
-      // 停止這次的搜尋 (5秒後)
-      setTimeout(() => {
-        periodicBrowser.stop();
-      }, 5000);
-    }, 30000); // 每30秒執行一次
-
-    // 清理定時器的函數
-    global.cleanupDiscovery = () => {
-      if (discoveryInterval) {
-        clearInterval(discoveryInterval);
-      }
-    };
+      setTimeout(() => periodicBrowser.stop(), 5000);
+    }, 30000);
 
   } catch (error) {
     console.error('Failed to start mDNS discovery:', error);
-    // 如果 mDNS 失敗，至少確保有 127.0.0.1
     discoveredNodes.add('127.0.0.1');
     setTimeout(() => {
       mainWindow?.webContents.send('node-update', Array.from(discoveredNodes));
@@ -288,58 +185,33 @@ function startMdnsDiscovery() {
   }
 }
 
-// IPC 處理器
-// 獲取模型資料夾路徑
+// ==================== 模型路徑管理 ====================
+
 function getModelsPath() {
   const customPath = store.get('modelsPath');
-  if (customPath) {
-    return customPath;
-  }
+  if (customPath) return customPath;
   
-  // 預設路徑：始終在當前執行路徑下的 models 資料夾
   if (app.isPackaged) {
-    // 打包後：在執行檔同目錄下的 models 資料夾
     return path.join(path.dirname(process.execPath), 'models');
   } else {
-    // 開發中：在專案根目錄的 models 資料夾
     return path.join(process.cwd(), 'models');
   }
 }
 
+// ==================== IPC Handlers: 模型管理 ====================
+
 ipcMain.handle('get-models', async () => {
   try {
     const modelsPath = getModelsPath();
-    console.log('Models path:', modelsPath);
-    
-    // 檢查 models 目錄是否存在，不存在則創建
     try {
       await fs.access(modelsPath);
     } catch {
-      console.log('Creating models directory:', modelsPath);
       await fs.mkdir(modelsPath, { recursive: true });
-      
-      // 創建說明檔案
       const readmePath = path.join(modelsPath, 'README.md');
-      const readmeContent = `# 模型資料夾
-
-請將您的 GGUF 格式模型檔案放置在此資料夾中。
-
-## 支援的模型格式
-- \`.gguf\` 檔案
-
-## 建議的模型來源
-- [Hugging Face](https://huggingface.co/models?library=gguf)
-- [TheBloke 的量化模型](https://huggingface.co/TheBloke)
-
-## 注意事項
-- 模型檔案可能很大（數 GB），請確保有足夠的磁碟空間
-- 較大的模型需要更多的 RAM 和 VRAM
-- 建議使用量化版本（如 Q4_K_M）以節省記憶體`;
-      
+      const readmeContent = `# 模型資料夾\n\n請將您的 GGUF 格式模型檔案放置在此資料夾中。\n\n## 支援的模型格式\n- \`.gguf\` 檔案\n\n## 建議的模型來源\n- [Hugging Face](https://huggingface.co/models?library=gguf)\n`;
       await fs.writeFile(readmePath, readmeContent, 'utf8');
       return [];
     }
-    
     const files = await fs.readdir(modelsPath);
     return files.filter(file => file.endsWith('.gguf'));
   } catch (error) {
@@ -348,20 +220,14 @@ ipcMain.handle('get-models', async () => {
   }
 });
 
-ipcMain.handle('get-models-path', async () => {
-  return getModelsPath();
-});
+ipcMain.handle('get-models-path', async () => getModelsPath());
 
 ipcMain.handle('set-models-path', async (event, newPath) => {
   try {
-    // 驗證路徑是否存在
     await fs.access(newPath);
-    
-    // 儲存新路徑
     store.set('modelsPath', newPath);
-    
     return { success: true, message: `模型路徑已設定為: ${newPath}` };
-  } catch (error) {
+  } catch {
     return { success: false, message: `無效的路徑: ${newPath}` };
   }
 });
@@ -380,12 +246,10 @@ ipcMain.handle('browse-models-folder', async () => {
       title: '選擇模型資料夾',
       defaultPath: getModelsPath()
     });
-    
     if (!result.canceled && result.filePaths.length > 0) {
       return { success: true, path: result.filePaths[0] };
-    } else {
-      return { success: false, message: '未選擇資料夾' };
     }
+    return { success: false, message: '未選擇資料夾' };
   } catch (error) {
     return { success: false, message: `選擇資料夾失敗: ${error.message}` };
   }
@@ -395,16 +259,7 @@ ipcMain.handle('open-models-folder', async () => {
   try {
     const { shell } = await import('electron');
     const modelsPath = getModelsPath();
-    
-    // 確保資料夾存在
-    try {
-      await fs.access(modelsPath);
-    } catch {
-      // 如果資料夾不存在，創建它
-      await fs.mkdir(modelsPath, { recursive: true });
-    }
-    
-    // 開啟資料夾
+    try { await fs.access(modelsPath); } catch { await fs.mkdir(modelsPath, { recursive: true }); }
     await shell.openPath(modelsPath);
     return { success: true, message: `已開啟資料夾: ${modelsPath}` };
   } catch (error) {
@@ -412,73 +267,47 @@ ipcMain.handle('open-models-folder', async () => {
   }
 });
 
+// ==================== IPC Handlers: API 伺服器管理 ====================
+
 ipcMain.handle('start-api-server', async (event, options) => {
   try {
-    const { modelName, apiKey, rpcNodes, ngl, np, ctxSize, flashAttention, cacheTypeK, cacheTypeV } = options;
+    const {
+      modelName, apiKey, rpcNodes, ngl, np, ctxSize,
+      flashAttention, cacheTypeK, cacheTypeV,
+      // Speculative Decoding 參數
+      specEnabled, draftModel, draftNgl, draftMax, draftMin, draftPMin
+    } = options;
     
     if (apiServerProcess) {
       return { success: false, message: 'API 伺服器已在運行中' };
     }
 
-    const platform = process.platform;
-    const osMap = {
-      'win32': 'windows',
-      'darwin': 'macos',
-      'linux': 'linux'
-    };
-    const binaryName = platform === 'win32' ? 'llama-server.exe' : 'llama-server';
-    
-    const basePath = app.isPackaged 
-      ? process.resourcesPath
-      : path.join(__dirname, '../..');
-
-    const serverPath = path.join(basePath, 'bin', osMap[platform], binaryName);
+    const serverPath = getBinaryPath('llama-server');
     const modelPath = path.join(getModelsPath(), modelName);
 
-    // 過濾掉本機IP，因為API伺服器本身就會參與計算
+    // 過濾掉本機IP
     const filteredRpcNodes = rpcNodes.filter(ip => ip !== '127.0.0.1' && ip !== 'localhost');
     const rpcString = filteredRpcNodes.length > 0 ? filteredRpcNodes.map(ip => `${ip}:50052`).join(',') : '';
     
-    console.log('Original RPC nodes:', rpcNodes);
-    console.log('Filtered RPC nodes (excluding localhost):', filteredRpcNodes);
-    console.log('RPC string:', rpcString);
-    
-    const args = [
-      '-m', modelPath,
-      '--host', '0.0.0.0',
-      '--port', '8080'
-    ];
+    const args = ['-m', modelPath, '--host', '0.0.0.0', '--port', '8080'];
 
-    if (apiKey) {
-      args.push('--api-key', apiKey);
-    }
+    if (apiKey) args.push('--api-key', apiKey);
+    if (rpcString) args.push('--rpc', rpcString);
+    if (ngl && ngl > 0) args.push('-ngl', ngl.toString());
+    if (np && np > 0) args.push('-np', np.toString());
+    if (ctxSize && ctxSize > 0) args.push('--ctx-size', ctxSize.toString());
+    if (flashAttention) args.push('-fa');
+    if (cacheTypeK && cacheTypeK !== 'f16') args.push('-ctk', cacheTypeK);
+    if (cacheTypeV && cacheTypeV !== 'f16') args.push('-ctv', cacheTypeV);
 
-    if (rpcString) {
-      args.push('--rpc', rpcString);
-    }
-
-    if (ngl && ngl > 0) {
-      args.push('-ngl', ngl.toString());
-    }
-
-    if (np && np > 0) {
-      args.push('-np', np.toString());
-    }
-
-    if (ctxSize && ctxSize > 0) {
-      args.push('--ctx-size', ctxSize.toString());
-    }
-
-    if (flashAttention) {
-      args.push('-fa');
-    }
-
-    if (cacheTypeK && cacheTypeK !== 'f16') {
-      args.push('-ctk', cacheTypeK);
-    }
-
-    if (cacheTypeV && cacheTypeV !== 'f16') {
-      args.push('-ctv', cacheTypeV);
+    // Speculative Decoding 參數
+    if (specEnabled && draftModel) {
+      const draftModelPath = path.join(getModelsPath(), draftModel);
+      args.push('-md', draftModelPath);
+      if (draftNgl != null && draftNgl > 0) args.push('-ngld', draftNgl.toString());
+      if (draftMax != null && draftMax > 0) args.push('--draft-max', draftMax.toString());
+      if (draftMin != null && draftMin > 0) args.push('--draft-min', draftMin.toString());
+      if (draftPMin != null && draftPMin > 0) args.push('--draft-p-min', draftPMin.toString());
     }
 
     console.log('Starting API server with args:', args);
@@ -500,7 +329,6 @@ ipcMain.handle('start-api-server', async (event, options) => {
       mainWindow?.webContents.send('api-server-status', false);
     });
 
-    // 通知前端 API 伺服器已啟動
     setTimeout(() => {
       mainWindow?.webContents.send('api-server-status', true);
     }, 3000);
@@ -522,248 +350,212 @@ ipcMain.handle('stop-api-server', async () => {
   return { success: false, message: 'API 伺服器未在運行' };
 });
 
-ipcMain.handle('get-api-key', async () => {
-  return store.get('apiKey', '');
-});
+// ==================== IPC Handlers: API Key ====================
 
+ipcMain.handle('get-api-key', async () => store.get('apiKey', ''));
 ipcMain.handle('set-api-key', async (event, apiKey) => {
   store.set('apiKey', apiKey);
   return { success: true };
 });
 
-ipcMain.handle('get-discovered-nodes', async () => {
-  return Array.from(discoveredNodes);
-});
+// ==================== IPC Handlers: 節點管理 ====================
+
+ipcMain.handle('get-discovered-nodes', async () => Array.from(discoveredNodes));
 
 ipcMain.handle('get-local-ips', async () => {
   try {
     const interfaces = os.networkInterfaces();
     const localIps = [];
-    
-    console.log('Network interfaces:', interfaces);
-    
     Object.keys(interfaces).forEach(name => {
-      const interfaceList = interfaces[name];
-      if (interfaceList) {
-        interfaceList.forEach(iface => {
-          // 只處理IPv4地址
+      const ifaceList = interfaces[name];
+      if (ifaceList) {
+        ifaceList.forEach(iface => {
           if (iface.family === 'IPv4') {
-            localIps.push({
-              address: iface.address,
-              interface: name,
-              internal: iface.internal
-            });
-            console.log(`Found IPv4 interface: ${name} - ${iface.address} (internal: ${iface.internal})`);
+            localIps.push({ address: iface.address, interface: name, internal: iface.internal });
           }
         });
       }
     });
-    
-    console.log('Local IPs found:', localIps);
     return localIps;
   } catch (error) {
     console.error('Error getting local IPs:', error);
-    // 返回基本的本機地址作為後備
-    return [
-      {
-        address: '127.0.0.1',
-        interface: 'Loopback',
-        internal: true
-      }
-    ];
+    return [{ address: '127.0.0.1', interface: 'Loopback', internal: true }];
   }
 });
 
-// 檢查節點連接性
 async function checkNodeConnection(nodeIp, port = 50052) {
   return new Promise((resolve) => {
     const socket = new net.Socket();
-    
-    const timeout = setTimeout(() => {
-      socket.destroy();
-      resolve(false);
-    }, 5000); // 5秒超時
-    
-    socket.connect(port, nodeIp, () => {
-      clearTimeout(timeout);
-      socket.destroy();
-      resolve(true);
-    });
-    
-    socket.on('error', () => {
-      clearTimeout(timeout);
-      resolve(false);
-    });
+    const timeout = setTimeout(() => { socket.destroy(); resolve(false); }, 5000);
+    socket.connect(port, nodeIp, () => { clearTimeout(timeout); socket.destroy(); resolve(true); });
+    socket.on('error', () => { clearTimeout(timeout); resolve(false); });
   });
 }
 
 ipcMain.handle('check-node-connection', async (event, nodeIp) => {
   try {
-    console.log(`Checking connection to ${nodeIp}:50052...`);
     const isConnectable = await checkNodeConnection(nodeIp);
-    
-    if (isConnectable) {
-      console.log(`Node ${nodeIp} is reachable`);
-      return { 
-        success: true, 
-        reachable: true, 
-        message: `節點 ${nodeIp} 連接成功，RPC 服務正在運行` 
-      };
-    } else {
-      console.log(`Node ${nodeIp} is not reachable`);
-      return { 
-        success: true, 
-        reachable: false, 
-        message: `無法連接到節點 ${nodeIp}:50052，請確認目標設備已啟動此程式` 
-      };
-    }
-  } catch (error) {
-    console.error('Error checking node connection:', error);
-    return { 
-      success: false, 
-      reachable: false, 
-      message: `檢查連接時發生錯誤: ${error.message}` 
+    return {
+      success: true,
+      reachable: isConnectable,
+      message: isConnectable
+        ? `節點 ${nodeIp} 連接成功，RPC 服務正在運行`
+        : `無法連接到節點 ${nodeIp}:50052，請確認目標設備已啟動此程式`
     };
+  } catch (error) {
+    return { success: false, reachable: false, message: `檢查連接時發生錯誤: ${error.message}` };
   }
 });
 
 ipcMain.handle('add-manual-node', async (event, nodeIp) => {
   try {
-    // 驗證 IP 格式
-    const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
-    if (!ipRegex.test(nodeIp)) {
-      return { success: false, message: '無效的 IP 地址格式' };
+    const ipRegex = /^(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)$/;
+    if (!ipRegex.test(nodeIp)) return { success: false, message: '無效的 IP 地址格式' };
+    if (discoveredNodes.has(nodeIp)) return { success: false, message: '該節點已存在' };
+
+    if (isLocalAddress(nodeIp) && nodeIp !== '127.0.0.1') {
+      return { success: false, message: '本機節點請使用 127.0.0.1' };
     }
-    
-    // 檢查是否已存在
-    if (discoveredNodes.has(nodeIp)) {
-      return { success: false, message: '該節點已存在' };
-    }
-    
-    // 檢查是否為本機IP
-    const interfaces = os.networkInterfaces();
-    let isLocalIp = false;
-    Object.keys(interfaces).forEach(name => {
-      const interfaceList = interfaces[name];
-      if (interfaceList) {
-        interfaceList.forEach(iface => {
-          // 只檢查IPv4地址
-          if (iface.family === 'IPv4' && iface.address === nodeIp) {
-            isLocalIp = true;
-          }
-        });
-      }
-    });
-    
-    if (isLocalIp) {
-      // 如果是本機IP，只允許添加 127.0.0.1
-      if (nodeIp === '127.0.0.1') {
-        // 允許添加 127.0.0.1
-      } else {
-        return { success: false, message: '本機節點請使用 127.0.0.1，其他本機IP不允許添加' };
-      }
-    }
-    
-    // 檢查節點連接性
-    console.log(`Checking connectivity for node: ${nodeIp}`);
+
     const connectionResult = await checkNodeConnection(nodeIp);
-    
-    // 無論是否可連接都添加節點，但返回連接狀態
     discoveredNodes.add(nodeIp);
-    console.log('Manually added node:', nodeIp, 'Reachable:', connectionResult);
-    
-    // 通知前端更新
     mainWindow?.webContents.send('node-update', Array.from(discoveredNodes));
-    
-    if (connectionResult) {
-      return { 
-        success: true, 
-        reachable: true,
-        message: `節點 ${nodeIp} 已添加並驗證連接成功` 
-      };
-    } else {
-      return { 
-        success: true, 
-        reachable: false,
-        message: `節點 ${nodeIp} 已添加，但無法連接到 RPC 服務 (端口 50052)。請確認目標設備已啟動此程式。` 
-      };
-    }
+
+    return {
+      success: true,
+      reachable: connectionResult,
+      message: connectionResult
+        ? `節點 ${nodeIp} 已添加並驗證連接成功`
+        : `節點 ${nodeIp} 已添加，但無法連接到 RPC 服務 (端口 50052)`
+    };
   } catch (error) {
-    console.error('Error adding manual node:', error);
     return { success: false, message: error.message };
   }
 });
 
 ipcMain.handle('remove-node', async (event, nodeIp) => {
-  try {
-    if (discoveredNodes.has(nodeIp)) {
-      discoveredNodes.delete(nodeIp);
-      console.log('Removed node:', nodeIp);
-      
-      // 通知前端更新
-      mainWindow?.webContents.send('node-update', Array.from(discoveredNodes));
-      
-      return { success: true, message: `節點 ${nodeIp} 已移除` };
-    } else {
-      return { success: false, message: '節點不存在' };
-    }
-  } catch (error) {
-    console.error('Error removing node:', error);
-    return { success: false, message: error.message };
+  if (discoveredNodes.has(nodeIp)) {
+    discoveredNodes.delete(nodeIp);
+    mainWindow?.webContents.send('node-update', Array.from(discoveredNodes));
+    return { success: true, message: `節點 ${nodeIp} 已移除` };
   }
+  return { success: false, message: '節點不存在' };
 });
 
-// 重啟 RPC server
 ipcMain.handle('restart-rpc-server', async () => {
   try {
-    // 停止現有的 RPC server
-    if (rpcServerProcess) {
-      rpcServerProcess.kill();
-      rpcServerProcess = null;
-      console.log('RPC server stopped for restart');
-    }
-    
-    // 重新啟動 RPC server
+    if (rpcServerProcess) { rpcServerProcess.kill(); rpcServerProcess = null; }
     startRpcServer();
-    
     return { success: true, message: 'RPC server 重啟中...' };
   } catch (error) {
-    console.error('Failed to restart RPC server:', error);
-    return { success: false, message: `重啟 RPC server 失敗: ${error.message}` };
+    return { success: false, message: `重啟失敗: ${error.message}` };
   }
 });
 
-// 應用程式事件
+// ==================== IPC Handlers: llama.cpp 更新 ====================
+
+ipcMain.handle('check-llamacpp-updates', async () => {
+  try {
+    return { success: true, ...(await checkForUpdates()) };
+  } catch (error) {
+    return { success: false, message: `檢查更新失敗: ${error.message}` };
+  }
+});
+
+ipcMain.handle('get-llamacpp-assets', async () => {
+  try {
+    const assets = await getAvailableAssets();
+    return { success: true, assets };
+  } catch (error) {
+    return { success: false, message: `獲取資源失敗: ${error.message}` };
+  }
+});
+
+ipcMain.handle('get-current-llamacpp-version', async () => getCurrentVersion());
+
+ipcMain.handle('download-llamacpp', async (event, assetUrl, assetName, tag) => {
+  try {
+    // 1. 關閉伺服器以解除檔案鎖
+    if (rpcServerProcess) {
+      console.log('正在關閉 RPC 伺服器以進行更新...');
+      rpcServerProcess.kill();
+      rpcServerProcess = null;
+    }
+    if (apiServerProcess) {
+      console.log('正在關閉 API 伺服器以進行更新...');
+      apiServerProcess.kill();
+      apiServerProcess = null;
+    }
+
+    // 稍微等待 500ms 確保進程徹底釋放資源
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // 2. 執行下載與安裝
+    const result = await downloadAndInstall(assetUrl, assetName, tag, (percent, message) => {
+      mainWindow?.webContents.send('download-progress', { percent, message, type: 'llamacpp' });
+    });
+    return result;
+  } catch (error) {
+    return { success: false, message: `下載失敗: ${error.message}` };
+  }
+});
+
+// ==================== IPC Handlers: Hugging Face 模型下載 ====================
+
+ipcMain.handle('search-hf-repo', async (event, repoId) => {
+  try {
+    const info = await searchRepo(repoId);
+    return { success: true, ...info };
+  } catch (error) {
+    return { success: false, message: `搜尋失敗: ${error.message}` };
+  }
+});
+
+ipcMain.handle('list-hf-models', async (event, repoId) => {
+  try {
+    const variants = await listGGUFFiles(repoId);
+    return { success: true, variants };
+  } catch (error) {
+    return { success: false, message: `列出模型失敗: ${error.message}` };
+  }
+});
+
+ipcMain.handle('download-hf-model', async (event, repoId, fileNames) => {
+  try {
+    const modelsPath = getModelsPath();
+    const result = await downloadModel(repoId, fileNames, modelsPath, (percent, message, currentFile) => {
+      mainWindow?.webContents.send('download-progress', { percent, message, currentFile, type: 'hf' });
+    });
+    return result;
+  } catch (error) {
+    return { success: false, message: `下載失敗: ${error.message}` };
+  }
+});
+
+ipcMain.handle('cancel-hf-download', async () => {
+  cancelDownload();
+  return { success: true, message: '已發送取消請求' };
+});
+
+// ==================== 應用程式生命週期 ====================
+
 app.whenReady().then(() => {
   createWindow();
   startRpcServer();
   startMdnsDiscovery();
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    }
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+  if (process.platform !== 'darwin') app.quit();
 });
 
-// 應用程式關閉時清理
 app.on('will-quit', () => {
-  if (rpcServerProcess) {
-    rpcServerProcess.kill();
-  }
-  if (apiServerProcess) {
-    apiServerProcess.kill();
-  }
-  if (bonjour) {
-    bonjour.destroy();
-  }
-  if (global.cleanupDiscovery) {
-    global.cleanupDiscovery();
-  }
+  if (rpcServerProcess) rpcServerProcess.kill();
+  if (apiServerProcess) apiServerProcess.kill();
+  if (bonjour) bonjour.destroy();
+  if (discoveryInterval) clearInterval(discoveryInterval);
 });

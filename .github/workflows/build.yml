@@ -25,7 +25,7 @@ on:
         required: false
 
 env:
-  LLAMACPP_VERSION: ${{ github.event.inputs.llamacpp_version || 'b5997' }}
+  LLAMACPP_VERSION: ${{ github.event.inputs.llamacpp_version || 'latest' }}
   WINDOWS_BINARY_URL: ${{ github.event.inputs.windows_binary_url || '' }}
   MACOS_BINARY_URL: ${{ github.event.inputs.macos_binary_url || '' }}
   LINUX_BINARY_URL: ${{ github.event.inputs.linux_binary_url || '' }}
@@ -55,27 +55,36 @@ jobs:
       run: |
         mkdir -p bin/windows bin/macos bin/linux
         
-        # 設定下載 URL（可以在這裡修改版本或檔案名稱）
-        LLAMACPP_VERSION="b5997"  # 可改為特定版本如 "b3259"
+        # 獲取最新版本或使用指定版本
+        get_latest_release() {
+          curl -s "https://api.github.com/repos/ggml-org/llama.cpp/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/'
+        }
+        
+        VERSION="${{ env.LLAMACPP_VERSION }}"
+        if [ -z "$VERSION" ] || [ "$VERSION" = "latest" ]; then
+          VERSION=$(get_latest_release)
+        fi
+        echo "Using llama.cpp version: $VERSION"
         
         if [ "${{ matrix.os }}" = "windows-latest" ]; then
           # Windows CUDA 版本
-          DOWNLOAD_URL="https://github.com/ggml-org/llama.cpp/releases/${LLAMACPP_VERSION}/download/llama-${LLAMACPP_VERSION}-bin-win-cuda-cu12.2.0-x64.zip"
-          EXTRACT_DIR="llama-${LLAMACPP_VERSION}-bin-win-cuda-cu12.2.0-x64"
+          DOWNLOAD_URL="https://github.com/ggml-org/llama.cpp/releases/download/${VERSION}/llama-${VERSION}-bin-win-cuda-12.4-x64.zip"
+          CUDA_DLL_URL="https://github.com/ggml-org/llama.cpp/releases/download/${VERSION}/cudart-llama-bin-win-cuda-12.4-x64.zip"
+          EXTRACT_DIR="temp_bin"
           
           echo "Downloading Windows binaries from: $DOWNLOAD_URL"
           curl -L -o llama-cpp.zip "$DOWNLOAD_URL"
+          curl -L -o cudart.zip "$CUDA_DLL_URL"
           
           if [ $? -eq 0 ]; then
-            unzip -q llama-cpp.zip
+            mkdir -p "$EXTRACT_DIR"
+            unzip -q llama-cpp.zip -d "$EXTRACT_DIR"
+            unzip -qo cudart.zip -d "$EXTRACT_DIR"
             if [ -d "$EXTRACT_DIR" ]; then
-              cp "$EXTRACT_DIR/rpc-server.exe" bin/windows/ 2>/dev/null || echo "Warning: rpc-server.exe not found"
-              cp "$EXTRACT_DIR/llama-server.exe" bin/windows/ 2>/dev/null || echo "Warning: llama-server.exe not found"
+              cp "$EXTRACT_DIR"/rpc-server.exe bin/windows/ 2>/dev/null || echo "Warning: rpc-server.exe not found"
+              cp "$EXTRACT_DIR"/llama-server.exe bin/windows/ 2>/dev/null || echo "Warning: llama-server.exe not found"
               cp "$EXTRACT_DIR"/*.dll bin/windows/ 2>/dev/null || echo "Warning: DLL files not found"
               echo "Windows binaries copied successfully"
-            else
-              echo "Error: Extract directory $EXTRACT_DIR not found"
-              ls -la
             fi
           else
             echo "Error: Failed to download Windows binaries"
@@ -83,23 +92,22 @@ jobs:
           fi
           
         elif [ "${{ matrix.os }}" = "macos-latest" ]; then
-          # macOS ARM64 版本
-          DOWNLOAD_URL="https://github.com/ggml-org/llama.cpp/releases/${LLAMACPP_VERSION}/download/llama-${LLAMACPP_VERSION}-bin-macos-arm64.zip"
-          EXTRACT_DIR="llama-${LLAMACPP_VERSION}-bin-macos-arm64"
+          # macOS ARM64 版本 (tar.gz)
+          DOWNLOAD_URL="https://github.com/ggml-org/llama.cpp/releases/download/${VERSION}/llama-${VERSION}-bin-macos-arm64.tar.gz"
+          EXTRACT_DIR="temp_bin"
           
           echo "Downloading macOS binaries from: $DOWNLOAD_URL"
-          curl -L -o llama-cpp.zip "$DOWNLOAD_URL"
+          curl -L -o llama-cpp.tar.gz "$DOWNLOAD_URL"
           
           if [ $? -eq 0 ]; then
-            unzip -q llama-cpp.zip
+            mkdir -p "$EXTRACT_DIR"
+            tar -xzf llama-cpp.tar.gz -C "$EXTRACT_DIR"
             if [ -d "$EXTRACT_DIR" ]; then
-              cp "$EXTRACT_DIR/rpc-server" bin/macos/ 2>/dev/null || echo "Warning: rpc-server not found"
-              cp "$EXTRACT_DIR/llama-server" bin/macos/ 2>/dev/null || echo "Warning: llama-server not found"
+              # Find and copy binaries
+              find "$EXTRACT_DIR" -name "rpc-server" -exec cp {} bin/macos/ \;
+              find "$EXTRACT_DIR" -name "llama-server" -exec cp {} bin/macos/ \;
               chmod +x bin/macos/* 2>/dev/null
               echo "macOS binaries copied successfully"
-            else
-              echo "Error: Extract directory $EXTRACT_DIR not found"
-              ls -la
             fi
           else
             echo "Error: Failed to download macOS binaries"
@@ -107,23 +115,21 @@ jobs:
           fi
           
         else
-          # Linux x64 版本
-          DOWNLOAD_URL="https://github.com/ggml-org/llama.cpp/releases/${LLAMACPP_VERSION}/download/llama-${LLAMACPP_VERSION}-bin-ubuntu-vulkan-x64.zip"
-          EXTRACT_DIR="llama-${LLAMACPP_VERSION}-bin-ubuntu-x64"
+          # Linux x64 版本 (tar.gz)
+          DOWNLOAD_URL="https://github.com/ggml-org/llama.cpp/releases/download/${VERSION}/llama-${VERSION}-bin-ubuntu-x64.tar.gz"
+          EXTRACT_DIR="temp_bin"
           
           echo "Downloading Linux binaries from: $DOWNLOAD_URL"
-          curl -L -o llama-cpp.zip "$DOWNLOAD_URL"
+          curl -L -o llama-cpp.tar.gz "$DOWNLOAD_URL"
           
           if [ $? -eq 0 ]; then
-            unzip -q llama-cpp.zip
+            mkdir -p "$EXTRACT_DIR"
+            tar -xzf llama-cpp.tar.gz -C "$EXTRACT_DIR"
             if [ -d "$EXTRACT_DIR" ]; then
-              cp "$EXTRACT_DIR/rpc-server" bin/linux/ 2>/dev/null || echo "Warning: rpc-server not found"
-              cp "$EXTRACT_DIR/llama-server" bin/linux/ 2>/dev/null || echo "Warning: llama-server not found"
+              find "$EXTRACT_DIR" -name "rpc-server" -exec cp {} bin/linux/ \;
+              find "$EXTRACT_DIR" -name "llama-server" -exec cp {} bin/linux/ \;
               chmod +x bin/linux/* 2>/dev/null
               echo "Linux binaries copied successfully"
-            else
-              echo "Error: Extract directory $EXTRACT_DIR not found"
-              ls -la
             fi
           else
             echo "Error: Failed to download Linux binaries"
@@ -243,7 +249,9 @@ jobs:
           
           - 🖥️ 現代化深色/明亮模式介面
           - 🌐 自動節點發現 + 手動添加
-          - ⚡ 高效分佈式推理
+          - ⚡ 高效分佈式推理 + 推測解碼 (Speculative Decoding)
+          - ☁️ Hugging Face 模型瀏覽與下載 (支援分割模型)
+          - 🔄 內建 llama.cpp 核心自動更新
           - 📁 自定義模型路徑管理
           - 🔧 並行請求數控制
           - 📊 實時日誌監控

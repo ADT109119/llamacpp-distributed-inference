@@ -19,6 +19,12 @@
                 <button id="theme-toggle" class="header-btn" title="切換主題">
                     <i class="theme-icon fas fa-moon"></i>
                 </button>
+                <button id="hf-download-btn" class="header-btn" title="從 Hugging Face 下載模型">
+                    <i class="fas fa-cloud-download-alt"></i>
+                </button>
+                <button id="update-btn" class="header-btn" title="更新 llama.cpp 核心">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
                 <button id="models-path-btn" class="header-btn" title="模型路徑設定">
                     <i class="fas fa-folder-open"></i>
                 </button>
@@ -59,6 +65,15 @@
                         <span id="node-count" class="node-count">0/0</span>
                     </div>
                     <div class="status-item">
+                        <span class="status-label">llama.cpp 版本</span>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span id="llamacpp-version" class="llamacpp-version">檢查中...</span>
+                            <button id="inline-update-btn" class="btn btn-secondary" style="padding: 3px 8px; font-size: 0.8em; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px;" title="更新 llama.cpp 核心">
+                                <i class="fas fa-arrow-alt-circle-up"></i> 更新
+                            </button>
+                        </div>
+                    </div>
+                    <div class="status-item">
                         <button id="restart-rpc-btn" class="btn btn-secondary" style="width: 100%; margin-top: 10px;">
                             <i class="fas fa-redo"></i> 重啟 RPC 伺服器
                         </button>
@@ -75,15 +90,12 @@
                     </button>
                 </div>
                 <div class="card-content">
-                    <!-- 本機IP顯示 -->
                     <div class="local-ips-section">
                         <h4><i class="fas fa-desktop"></i> 本機網路介面</h4>
                         <div id="local-ips-container" class="local-ips-container">
                             <p class="loading"><i class="fas fa-spinner fa-spin"></i> 載入中...</p>
                         </div>
                     </div>
-                    
-                    <!-- 發現的節點 -->
                     <div class="discovered-nodes-section">
                         <h4><i class="fas fa-search"></i> 發現的節點</h4>
                         <div id="nodes-container" class="nodes-container">
@@ -172,6 +184,64 @@
                                     <option value="q5_1">q5_1</option>
                                 </select>
                             </div>
+
+                            <!-- Speculative Decoding 區塊 -->
+                            <div class="spec-decode-section">
+                                <h4><i class="fas fa-forward"></i> Speculative Decoding</h4>
+                                <div class="control-description" style="margin-bottom: 12px;">
+                                    使用較小的 Draft Model 預生成候選 token，由主模型批量驗證，加速推理 1.5x-3x。
+                                    Draft Model 必須與主模型使用相同的 tokenizer。
+                                </div>
+
+                                <div class="control-item">
+                                    <label for="spec-enabled">
+                                        <input type="checkbox" id="spec-enabled" class="checkbox-input">
+                                        啟用 Speculative Decoding
+                                    </label>
+                                </div>
+
+                                <div id="spec-options" class="spec-options" style="display: none;">
+                                    <div class="control-item">
+                                        <label for="draft-model-select">Draft Model (-md)</label>
+                                        <select id="draft-model-select" class="modern-select">
+                                            <option value="">選擇 Draft Model...</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="control-item">
+                                        <label for="draft-gpu-layers">Draft GPU Layers (-ngld)</label>
+                                        <div class="slider-container">
+                                            <input type="range" id="draft-gpu-slider" min="0" max="200" value="35" class="gpu-slider">
+                                            <input type="number" id="draft-gpu-layers" value="35" min="0" class="gpu-input">
+                                        </div>
+                                    </div>
+
+                                    <div class="control-item">
+                                        <label for="draft-max">Draft Max (--draft-max)</label>
+                                        <div class="slider-container">
+                                            <input type="range" id="draft-max-slider" min="1" max="64" value="16" class="gpu-slider">
+                                            <input type="number" id="draft-max" value="16" min="1" max="64" class="gpu-input">
+                                        </div>
+                                    </div>
+
+                                    <div class="control-item">
+                                        <label for="draft-min">Draft Min (--draft-min)</label>
+                                        <div class="slider-container">
+                                            <input type="range" id="draft-min-slider" min="0" max="32" value="0" class="gpu-slider">
+                                            <input type="number" id="draft-min" value="0" min="0" max="32" class="gpu-input">
+                                        </div>
+                                    </div>
+
+                                    <div class="control-item">
+                                        <label for="draft-p-min">Draft P-Min (--draft-p-min)</label>
+                                        <div class="slider-container">
+                                            <input type="range" id="draft-p-min-slider" min="0" max="100" value="75" class="gpu-slider">
+                                            <input type="number" id="draft-p-min" value="0.75" min="0" max="1" step="0.01" class="gpu-input">
+                                        </div>
+                                        <div class="control-description">建議 0.5-0.9，越高越保守（接受率低但品質高）</div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
@@ -256,7 +326,6 @@
                         <i class="fas fa-external-link-alt"></i>
                     </button>
                 </div>
-                
                 <label for="new-models-path">新的模型路徑:</label>
                 <div class="path-input">
                     <input type="text" id="new-models-path" placeholder="輸入新的模型資料夾路徑">
@@ -264,13 +333,101 @@
                         <i class="fas fa-folder"></i> 瀏覽
                     </button>
                 </div>
-                
                 <p class="help-text">設定模型檔案的存放位置。變更後需要重新載入模型列表。</p>
             </div>
             <div class="modal-footer">
                 <button id="save-models-path" class="btn btn-primary"><i class="fas fa-save"></i> 儲存</button>
                 <button id="reset-models-path" class="btn btn-secondary"><i class="fas fa-undo"></i> 重置為預設</button>
                 <button id="cancel-models-path" class="btn btn-secondary">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- llama.cpp 更新模態框 -->
+    <div id="update-modal" class="modal">
+        <div class="modal-content modal-content-lg">
+            <div class="modal-header">
+                <h3><i class="fas fa-sync-alt"></i> llama.cpp 核心更新</h3>
+                <button class="close close-update-modal"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="version-info">
+                    <div class="version-row">
+                        <span class="version-label">目前版本：</span>
+                        <span id="update-current-version" class="version-value">檢查中...</span>
+                    </div>
+                    <div class="version-row">
+                        <span class="version-label">最新版本：</span>
+                        <span id="update-latest-version" class="version-value">檢查中...</span>
+                    </div>
+                </div>
+
+                <div class="control-item" style="margin-top: 15px;">
+                    <label for="update-variant-select">選擇變體：</label>
+                    <select id="update-variant-select" class="modern-select">
+                        <option value="">載入中...</option>
+                    </select>
+                </div>
+
+                <div id="update-progress-section" class="progress-section" style="display: none;">
+                    <div class="progress-bar-container">
+                        <div id="update-progress-bar" class="progress-bar" style="width: 0%;"></div>
+                    </div>
+                    <p id="update-progress-text" class="progress-text">準備中...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="start-update-btn" class="btn btn-primary"><i class="fas fa-download"></i> 下載並安裝</button>
+                <button id="cancel-update-btn" class="btn btn-secondary">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hugging Face 模型下載模態框 -->
+    <div id="hf-modal" class="modal">
+        <div class="modal-content modal-content-lg">
+            <div class="modal-header">
+                <h3><i class="fas fa-cloud-download-alt"></i> 從 Hugging Face 下載模型</h3>
+                <button class="close close-hf-modal"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <label for="hf-repo-input">Hugging Face Repo ID：</label>
+                <div class="path-input">
+                    <input type="text" id="hf-repo-input" placeholder="例如: unsloth/Qwen3-32B-GGUF">
+                    <button id="hf-search-btn" class="btn btn-primary">
+                        <i class="fas fa-search"></i> 搜尋
+                    </button>
+                </div>
+                <p class="help-text">輸入 Hugging Face 模型的完整 repo ID（作者/模型名稱），系統會自動列出可用的 GGUF 量化變體。</p>
+
+                <div id="hf-repo-info" class="hf-repo-info" style="display: none;">
+                    <div class="hf-repo-header">
+                        <span id="hf-repo-name" class="hf-repo-name"></span>
+                        <span id="hf-repo-downloads" class="hf-repo-downloads"></span>
+                    </div>
+                </div>
+
+                <div id="hf-variants-container" class="hf-variants-container" style="display: none;">
+                    <h4><i class="fas fa-cubes"></i> 可用的量化變體</h4>
+                    <div id="hf-variants-list" class="hf-variants-list"></div>
+                </div>
+
+                <div id="hf-progress-section" class="progress-section" style="display: none;">
+                    <div class="progress-bar-container">
+                        <div id="hf-progress-bar" class="progress-bar" style="width: 0%;"></div>
+                    </div>
+                    <p id="hf-progress-text" class="progress-text">準備中...</p>
+                    <p id="hf-current-file" class="progress-subtext"></p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="hf-download-selected-btn" class="btn btn-primary" style="display: none;">
+                    <i class="fas fa-download"></i> 下載選取的模型
+                </button>
+                <button id="hf-cancel-download-btn" class="btn btn-secondary" style="display: none;">
+                    <i class="fas fa-stop"></i> 取消下載
+                </button>
+                <button id="hf-close-btn" class="btn btn-secondary">關閉</button>
             </div>
         </div>
     </div>

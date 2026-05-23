@@ -1113,10 +1113,16 @@ body.dark-mode .log-entry {
 
 .modal-content {
     background: #ffffff;
-    margin: 15% auto;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     padding: 0;
     width: 90%;
     max-width: 500px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
     border: 1px solid #d0d0d0;
     overflow: hidden;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
@@ -1153,6 +1159,8 @@ body.dark-mode .log-entry {
 
 .modal-body {
     padding: 25px;
+    flex: 1;
+    overflow-y: auto;
 }
 
 .modal-body label {
@@ -1162,7 +1170,7 @@ body.dark-mode .log-entry {
     color: #1a1a1a;
 }
 
-.modal-body input {
+.modal-body input:not([type="checkbox"]):not([type="radio"]) {
     width: 100%;
     padding: 12px 15px;
     border: 1px solid #d0d0d0;
@@ -1223,7 +1231,7 @@ body.dark-mode .modal-body label {
     color: #C0CAF5;
 }
 
-body.dark-mode .modal-body input {
+body.dark-mode .modal-body input:not([type="checkbox"]):not([type="radio"]) {
     border: 1px solid #414868;
     background: #1F2335;
     color: #C0CAF5;
@@ -1310,4 +1318,289 @@ body.dark-mode .modal-footer {
 
 ::-webkit-scrollbar-thumb:hover {
     background: #333333;
+}
+
+/* ==================== 擴充模態框樣式 ==================== */
+.modal-content-lg {
+    max-width: 700px;
+}
+
+/* ==================== llama.cpp 更新樣式 ==================== */
+.version-info {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: #f8f8f8;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #d0d0d0;
+}
+
+body.dark-mode .version-info {
+    background: #1F2335;
+    border-color: #414868;
+}
+
+.version-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 1.1em;
+}
+
+.version-label {
+    font-weight: 500;
+}
+
+.version-value {
+    font-family: 'Fira Code', monospace;
+    font-weight: bold;
+    color: #2563eb;
+}
+
+body.dark-mode .version-value {
+    color: #7AA2F7;
+}
+
+/* ==================== 進度條樣式 ==================== */
+.progress-section {
+    margin-top: 20px;
+    padding: 15px;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 8px;
+}
+
+body.dark-mode .progress-section {
+    background: rgba(158, 206, 106, 0.1);
+    border-color: rgba(158, 206, 106, 0.3);
+}
+
+.progress-bar-container {
+    height: 12px;
+    background: #e5e7eb;
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+body.dark-mode .progress-bar-container {
+    background: #414868;
+}
+
+.progress-bar {
+    height: 100%;
+    background: #22c55e;
+    transition: width 0.3s ease;
+}
+
+body.dark-mode .progress-bar {
+    background: #9ECE6A;
+}
+
+.progress-text {
+    font-size: 0.9em;
+    color: #166534;
+    margin: 0;
+    text-align: center;
+}
+
+body.dark-mode .progress-text {
+    color: #9ECE6A;
+}
+
+.progress-subtext {
+    font-size: 0.8em;
+    color: #666666;
+    margin: 4px 0 0 0;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+body.dark-mode .progress-subtext {
+    color: #A9B1D6;
+}
+
+/* ==================== Hugging Face 模型下載樣式 ==================== */
+.hf-repo-info {
+    margin-top: 15px;
+    padding: 12px 15px;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+body.dark-mode .hf-repo-info {
+    background: rgba(122, 162, 247, 0.1);
+    border-color: rgba(122, 162, 247, 0.3);
+}
+
+.hf-repo-name {
+    font-weight: bold;
+    font-size: 1.1em;
+    color: #1e3a8a;
+}
+
+body.dark-mode .hf-repo-name {
+    color: #7AA2F7;
+}
+
+.hf-repo-downloads {
+    color: #3b82f6;
+    font-size: 0.9em;
+}
+
+.hf-variants-container {
+    margin-top: 20px;
+}
+
+.hf-variants-container h4 {
+    margin: 0 0 10px 0;
+    color: #1a1a1a;
+}
+
+body.dark-mode .hf-variants-container h4 {
+    color: #C0CAF5;
+}
+
+.hf-variants-list {
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #d0d0d0;
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+body.dark-mode .hf-variants-list {
+    background: #1F2335;
+    border-color: #414868;
+}
+
+.hf-variant-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 15px;
+    border-bottom: 1px solid #f0f0f0;
+    transition: background-color 0.2s;
+}
+
+body.dark-mode .hf-variant-item {
+    border-color: #292E42;
+}
+
+.hf-variant-item:last-child {
+    border-bottom: none;
+}
+
+.hf-variant-item:hover {
+    background: #f8f8f8;
+}
+
+body.dark-mode .hf-variant-item:hover {
+    background: #24283B;
+}
+
+.variant-checkbox {
+    margin-right: 15px;
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.variant-info {
+    flex-grow: 1;
+}
+
+.variant-name {
+    display: block;
+    font-weight: 600;
+    color: #1a1a1a;
+    margin-bottom: 4px;
+    cursor: pointer;
+}
+
+body.dark-mode .variant-name {
+    color: #C0CAF5;
+}
+
+.variant-meta {
+    display: flex;
+    gap: 15px;
+    font-size: 0.85em;
+    color: #666666;
+}
+
+body.dark-mode .variant-meta {
+    color: #A9B1D6;
+}
+
+.variant-size {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.variant-shards {
+    color: #d97706;
+    background: #fef3c7;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.9em;
+}
+
+body.dark-mode .variant-shards {
+    color: #E0AF68;
+    background: rgba(224, 175, 104, 0.15);
+}
+
+/* ==================== Speculative Decoding 樣式 ==================== */
+.spec-decode-section {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px dashed #d0d0d0;
+}
+
+body.dark-mode .spec-decode-section {
+    border-color: #414868;
+}
+
+.spec-decode-section h4 {
+    margin: 0 0 10px 0;
+    color: #1a1a1a;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+body.dark-mode .spec-decode-section h4 {
+    color: #C0CAF5;
+}
+
+.spec-options {
+    margin-top: 15px;
+    padding-left: 15px;
+    border-left: 2px solid #3b82f6;
+}
+
+body.dark-mode .spec-options {
+    border-color: #7AA2F7;
+}
+
+.llamacpp-version {
+    font-family: 'Fira Code', monospace;
+    font-weight: 600;
+    background: #e0e7ff;
+    color: #4f46e5;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+
+body.dark-mode .llamacpp-version {
+    background: rgba(122, 162, 247, 0.15);
+    color: #7AA2F7;
 }

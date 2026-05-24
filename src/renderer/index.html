@@ -111,6 +111,23 @@
                     <h2><i class="fas fa-sliders-h"></i> 控制面板</h2>
                 </div>
                 <div class="card-content">
+                    <!-- 目前載入模型資訊 -->
+                    <div class="loaded-model-info" id="loaded-model-info" style="display: none;">
+                        <div class="info-header">
+                            <span class="info-title"><i class="fas fa-microchip"></i> 目前載入模型</span>
+                            <span class="info-badge">作用中</span>
+                        </div>
+                        <div class="info-body">
+                            <div class="model-meta-row">
+                                <span class="meta-label">模型名稱:</span>
+                                <span class="meta-value" id="loaded-model-name">-</span>
+                            </div>
+                            <button id="unload-model-btn" class="btn-danger-outline" style="width: 100%; margin-top: 12px; padding: 8px; font-size: 0.9em; display: inline-flex; align-items: center; justify-content: center; gap: 6px;">
+                                <i class="fas fa-eject"></i> 卸載此模型 (釋放記憶體)
+                            </button>
+                        </div>
+                    </div>
+
                     <div class="control-item">
                         <label for="model-select">模型 (Model)</label>
                         <select id="model-select" class="modern-select">
@@ -185,6 +202,55 @@
                                 </select>
                             </div>
 
+                            <div class="control-item">
+                                <label for="idle-timeout">模型自動卸載時間 (分鐘)</label>
+                                <div class="slider-container">
+                                    <input type="range" id="idle-timeout-slider" min="0" max="60" value="5" class="gpu-slider">
+                                    <input type="number" id="idle-timeout" value="5" min="0" max="1440" class="gpu-input">
+                                </div>
+                                <div class="control-description">設定模型在閒置多久後自動卸載以釋放記憶體。設為 0 表示不自動卸載。</div>
+                            </div>
+
+                            <div class="control-item">
+                                <label for="auto-load-toggle" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="checkbox" id="auto-load-toggle" class="checkbox-input" checked>
+                                    啟用即時模型加載 (On-demand loading)
+                                </label>
+                                <div class="control-description">當收到 API 請求且請求的模型尚未載入時，是否自動載入該模型。</div>
+                            </div>
+
+                            <div class="control-item">
+                                <label for="max-memory-limit">記憶體上限限制 (GB)</label>
+                                <div class="slider-container">
+                                    <input type="range" id="max-memory-slider" min="0" max="64" value="0" class="gpu-slider">
+                                    <input type="number" id="max-memory-limit" value="0" min="0" max="1024" class="gpu-input">
+                                </div>
+                                <div class="control-description">限制推理引擎可使用的最大記憶體上限 (GB)。設為 0 表示不限制。</div>
+                            </div>
+
+                            <div class="control-item">
+                                <label for="restrict-single-model" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="checkbox" id="restrict-single-model" class="checkbox-input">
+                                    限制僅載入單一指定模型 (限制自動切換)
+                                </label>
+                                <div class="control-description">啟用後，API 伺服器僅會回應目前已載入模型的請求，收到其他模型請求時將直接拒絕而非自動切換模型。</div>
+                            </div>
+
+                            <div class="control-item">
+                                <label for="cuda-device-id">GPU 裝置選擇 (--device)</label>
+                                <input type="text" id="cuda-device-id" placeholder="例如: 0, 1 或 cuda (預設為空白)" class="gpu-input" style="width: 100%; text-align: left; padding: 8px; font-family: inherit;">
+                                <div class="control-description">指定運作的 GPU 裝置（GPU ID）。多 GPU 系統下可指定特定裝置（如：0）。</div>
+                            </div>
+
+                            <div class="control-item">
+                                <label for="cpu-threads">CPU 執行緒數 (-t)</label>
+                                <div class="slider-container">
+                                    <input type="range" id="threads-slider" min="0" max="64" value="0" class="gpu-slider">
+                                    <input type="number" id="cpu-threads" value="0" min="0" max="128" class="gpu-input">
+                                </div>
+                                <div class="control-description">指定本機推理運算時使用的 CPU 執行緒數。設為 0 表示由系統自動決定。</div>
+                            </div>
+
                             <!-- Speculative Decoding 區塊 -->
                             <div class="spec-decode-section">
                                 <h4><i class="fas fa-forward"></i> Speculative Decoding</h4>
@@ -243,6 +309,13 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+
+                    <div class="control-item" style="margin-top: 15px; margin-bottom: 15px;">
+                        <label for="remember-model-settings" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="remember-model-settings" class="checkbox-input">
+                            <span id="remember-model-settings-label">記住此模型的設定 (Remember settings)</span>
+                        </label>
                     </div>
                     
                     <button id="main-action-btn" class="main-action-btn">

@@ -136,6 +136,52 @@ jobs:
           echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
         fi
         
+    - name: Generate Release Notes
+      run: |
+        cat << 'EOF' > generate_notes.js
+        const fs = require("fs");
+        const changelogPath = "CHANGELOG.md";
+        const rawVersion = process.argv[2];
+        const version = rawVersion.startsWith("v") ? rawVersion.slice(1) : rawVersion;
+        
+        let releaseNotes = "";
+        if (fs.existsSync(changelogPath)) {
+          const changelog = fs.readFileSync(changelogPath, "utf8");
+          const escapedVersion = version.replace(/\./g, "\\.");
+          const regex = new RegExp("##\\s*\\[?" + escapedVersion + "\\]?[\\s\\S]*?(?=\\n##\\s|$)");
+          const match = changelog.match(regex);
+          if (match) {
+            releaseNotes = match[0].trim();
+          }
+        }
+        
+        if (!releaseNotes) {
+          releaseNotes = "## 🚀 分佈式 LLM 推理桌面應用程式 " + rawVersion + "\n\n請參閱 CHANGELOG.md 取得完整變更歷史。";
+        }
+        
+        const footer = `
+        
+        ### 📦 下載說明
+        
+        - **Windows**: \`distributed-llm-inference-windows.exe\` (安裝程式) 或 \`distributed-llm-inference-windows.zip\` (免安裝版)
+        - **macOS**: \`distributed-llm-inference-macos.dmg\` (安裝程式) 或 \`distributed-llm-inference-macos.zip\` (免安裝版)
+        - **Linux**: \`distributed-llm-inference-linux.AppImage\` (可執行檔) 或 \`distributed-llm-inference-linux.tar.gz\` (免安裝版)
+        
+        ### ⚠️ 重要提醒
+        
+        1. **安全警告**: 請僅在可信的內網環境中使用
+        2. **模型檔案**: 需要自行下載 \`.gguf\` 格式的模型檔案
+        3. **網路設定**: 確保防火牆開放端口 50052 和 8080
+        
+        ---
+        
+        **完整說明請參閱**: [README.md](https://github.com/${{ github.repository }}/blob/main/README.md)
+        `;
+        
+        fs.writeFileSync("release_notes.md", releaseNotes + footer);
+        EOF
+        node generate_notes.js "${{ steps.version.outputs.version }}"
+
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
@@ -143,43 +189,7 @@ jobs:
         name: Release ${{ steps.version.outputs.version }}
         draft: true
         prerelease: false
-        body: |
-          ## 🚀 分佈式 LLM 推理桌面應用程式 ${{ steps.version.outputs.version }}
-          
-          ### 📦 下載說明
-          
-          - **Windows**: `distributed-llm-inference-windows.exe` (安裝程式) 或 `distributed-llm-inference-windows.zip` (免安裝版)
-          - **macOS**: `distributed-llm-inference-macos.dmg` (安裝程式) 或 `distributed-llm-inference-macos.zip` (免安裝版)
-          - **Linux**: `distributed-llm-inference-linux.AppImage` (可執行檔) 或 `distributed-llm-inference-linux.tar.gz` (免安裝版)
-          
-          ### ⚠️ 重要提醒
-          
-          1. **安全警告**: 請僅在可信的內網環境中使用
-          2. **模型檔案**: 需要自行下載 `.gguf` 格式的模型檔案
-          3. **網路設定**: 確保防火牆開放端口 50052 和 8080
-          
-          ### 🆕 主要功能
-          
-          - 🖥️ 現代化深色/明亮模式介面
-          - 🌐 自動節點發現 + 手動添加
-          - ⚡ 高效分佈式推理 + 推測解碼 (Speculative Decoding)
-          - ☁️ Hugging Face 模型瀏覽與下載 (支援分割模型)
-          - 🔄 內建 llama.cpp 核心自動更新
-          - 📁 自定義模型路徑管理
-          - 🔧 並行請求數控制
-          - 📊 實時日誌監控
-          - 🔍 節點連接檢查
-          
-          ### 📋 使用步驟
-          
-          1. 下載對應平台的檔案
-          2. 解壓縮或安裝
-          3. 將 `.gguf` 模型檔案放入 `models/` 資料夾
-          4. 執行程式並開始使用
-          
-          ---
-          
-          **完整說明請參閱**: [README.md](https://github.com/${{ github.repository }}/blob/main/README.md)
+        body_path: release_notes.md
         files: |
           release-assets/*
       env:

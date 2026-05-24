@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ==================== API 伺服器控制 ====================
   startApiServer: (options) => ipcRenderer.invoke('start-api-server', options),
   stopApiServer: () => ipcRenderer.invoke('stop-api-server'),
+  unloadModel: () => ipcRenderer.invoke('unload-model'),
   
   // ==================== API Key 管理 ====================
   getApiKey: () => ipcRenderer.invoke('get-api-key'),

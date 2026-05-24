@@ -45,7 +45,7 @@ export async function searchRepo(repoId) {
  * @returns {Promise<Array<{variant: string, files: Array<{name: string, size: number}>, totalSize: number, shardCount: number, isSplit: boolean}>>}
  */
 export async function listGGUFFiles(repoId) {
-  const data = await fetchJson(`${HF_API_BASE}/${repoId}/revision/main`);
+  const data = await fetchJson(`${HF_API_BASE}/${repoId}/revision/main?blobs=true`);
   const siblings = data.siblings || [];
 
   // 篩選 .gguf 檔案

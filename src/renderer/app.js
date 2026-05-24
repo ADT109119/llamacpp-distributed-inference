@@ -3,6 +3,7 @@ let discoveredNodes = [];
 let selectedNodes = [];
 let rpcServerRunning = false;
 let apiServerRunning = false;
+let currentlyActiveModel = null;
 
 // DOM 元素
 const elements = {
@@ -54,6 +55,13 @@ const elements = {
     rpcLog: document.getElementById('rpc-log'),
     apiLog: document.getElementById('api-log'),
     tabBtns: document.querySelectorAll('.tab-btn'),
+    // Auto Offload & Memory Limit
+    idleTimeout: document.getElementById('idle-timeout'),
+    idleTimeoutSlider: document.getElementById('idle-timeout-slider'),
+    autoLoadToggle: document.getElementById('auto-load-toggle'),
+    maxMemoryLimit: document.getElementById('max-memory-limit'),
+    maxMemorySlider: document.getElementById('max-memory-slider'),
+    rememberModelSettings: document.getElementById('remember-model-settings'),
     // Speculative Decoding
     specEnabled: document.getElementById('spec-enabled'),
     specOptions: document.getElementById('spec-options'),
@@ -96,8 +104,127 @@ const elements = {
     hfCurrentFile: document.getElementById('hf-current-file'),
     hfDownloadSelectedBtn: document.getElementById('hf-download-selected-btn'),
     hfCancelDownloadBtn: document.getElementById('hf-cancel-download-btn'),
-    hfCloseBtn: document.getElementById('hf-close-btn')
+    hfCloseBtn: document.getElementById('hf-close-btn'),
+    // Loaded Model Info
+    loadedModelInfo: document.getElementById('loaded-model-info'),
+    loadedModelName: document.getElementById('loaded-model-name'),
+    unloadModelBtn: document.getElementById('unload-model-btn'),
+    // Advanced Settings additions
+    restrictSingleModel: document.getElementById('restrict-single-model'),
+    cudaDeviceId: document.getElementById('cuda-device-id'),
+    cpuThreads: document.getElementById('cpu-threads'),
+    threadsSlider: document.getElementById('threads-slider')
 };
+
+// ==================== 客製化選擇器元件 ====================
+
+function createCustomSelect(selectId) {
+    const select = document.getElementById(selectId);
+    if (!select) return;
+    
+    // 隱藏原生 select
+    select.style.display = 'none';
+    
+    // 移除已有的客製化容器，以防重複建立
+    const existingContainer = select.parentNode.querySelector(`.custom-select-container[data-select="${selectId}"]`);
+    if (existingContainer) {
+        existingContainer.remove();
+    }
+    
+    // 建立外層容器
+    const container = document.createElement('div');
+    container.className = 'custom-select-container';
+    container.setAttribute('data-select', selectId);
+    
+    // 建立 Trigger
+    const trigger = document.createElement('div');
+    trigger.className = 'custom-select-trigger';
+    
+    const triggerText = document.createElement('span');
+    triggerText.className = 'custom-select-text';
+    
+    const activeOption = select.options[select.selectedIndex];
+    let triggerLabel = activeOption ? activeOption.textContent : '請選擇...';
+    if (selectId === 'model-select' && activeOption && currentlyActiveModel && activeOption.value === currentlyActiveModel) {
+        triggerLabel = `🟢 ${activeOption.textContent} (作用中)`;
+    }
+    triggerText.textContent = triggerLabel;
+    
+    const icon = document.createElement('i');
+    icon.className = 'fas fa-chevron-down';
+    
+    trigger.appendChild(triggerText);
+    trigger.appendChild(icon);
+    container.appendChild(trigger);
+    
+    // 建立選項列表
+    const optionsList = document.createElement('div');
+    optionsList.className = 'custom-select-options';
+    
+    // 建立各個選項
+    Array.from(select.options).forEach((opt, idx) => {
+        const optionEl = document.createElement('div');
+        optionEl.className = 'custom-select-option';
+        if (opt.selected) optionEl.classList.add('selected');
+        
+        let labelText = opt.textContent;
+        if (selectId === 'model-select' && currentlyActiveModel && opt.value === currentlyActiveModel) {
+            optionEl.classList.add('active-running');
+            labelText = `🟢 ${opt.textContent} (作用中)`;
+        }
+        
+        optionEl.textContent = labelText;
+        optionEl.setAttribute('data-value', opt.value);
+        
+        optionEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            
+            // 更新選取狀態樣式
+            optionsList.querySelectorAll('.custom-select-option').forEach(el => el.classList.remove('selected'));
+            optionEl.classList.add('selected');
+            
+            // 更新 Trigger 顯示文字
+            let selectedLabel = opt.textContent;
+            if (selectId === 'model-select' && currentlyActiveModel && opt.value === currentlyActiveModel) {
+                selectedLabel = `🟢 ${opt.textContent} (作用中)`;
+            }
+            triggerText.textContent = selectedLabel;
+            
+            // 關閉下拉選單
+            container.classList.remove('open');
+            
+            // 更新原生 select 值並觸發 change 事件
+            select.selectedIndex = idx;
+            select.dispatchEvent(new Event('change'));
+        });
+        
+        optionsList.appendChild(optionEl);
+    });
+    
+    container.appendChild(optionsList);
+    
+    // Trigger 點擊開關
+    trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        
+        // 關閉其他所有的客製化選擇器
+        document.querySelectorAll('.custom-select-container').forEach(c => {
+            if (c !== container) c.classList.remove('open');
+        });
+        
+        container.classList.toggle('open');
+    });
+    
+    // 插入到原生 select 的後面
+    select.parentNode.insertBefore(container, select.nextSibling);
+}
+
+// 點擊頁面其他地方關閉下拉選單
+document.addEventListener('click', () => {
+    document.querySelectorAll('.custom-select-container').forEach(c => {
+        c.classList.remove('open');
+    });
+});
 
 // 初始化應用程式
 async function initApp() {
@@ -105,6 +232,10 @@ async function initApp() {
     
     // 初始化主題
     initTheme();
+    
+    // 初始化靜態下拉選單
+    createCustomSelect('cache-type-k');
+    createCustomSelect('cache-type-v');
     
     // 載入模型列表
     await loadModels();
@@ -151,6 +282,8 @@ async function loadModels() {
             });
             logMessage('系統', `找到 ${models.length} 個模型檔案，路徑: ${modelsPath}`, 'success');
         }
+        createCustomSelect('model-select');
+        createCustomSelect('draft-model-select');
     } catch (error) {
         logMessage('系統', `載入模型列表失敗: ${error.message}`, 'error');
     }
@@ -508,6 +641,12 @@ async function startApiServer() {
     const cacheTypeK = elements.cacheTypeK.value;
     const cacheTypeV = elements.cacheTypeV.value;
     const apiKey = elements.apiKeyInput.value;
+    const idleTimeout = parseInt(elements.idleTimeout.value) === 0 ? 0 : (parseInt(elements.idleTimeout.value) || 5);
+    const autoLoadEnabled = elements.autoLoadToggle.checked;
+    const maxMemoryLimit = parseInt(elements.maxMemoryLimit.value) || 0;
+    const restrictSingleModel = elements.restrictSingleModel.checked;
+    const cudaDeviceId = elements.cudaDeviceId.value || '';
+    const cpuThreads = parseInt(elements.cpuThreads.value) || 0;
     
     // Speculative Decoding
     const specEnabled = elements.specEnabled.checked;
@@ -535,6 +674,9 @@ async function startApiServer() {
         if (!confirm) return;
     }
     
+    // 啟動前若有勾選記住設定，則進行儲存
+    saveIfRememberChecked();
+    
     try {
         updateMainActionButton('loading');
         
@@ -553,7 +695,13 @@ async function startApiServer() {
             draftNgl,
             draftMax,
             draftMin,
-            draftPMin
+            draftPMin,
+            idleTimeout,
+            autoLoadEnabled,
+            maxMemoryLimit,
+            restrictSingleModel,
+            cudaDeviceId,
+            cpuThreads
         });
         
         if (result.success) {
@@ -566,6 +714,12 @@ async function startApiServer() {
             logMessage('系統', `KV Cache Type K: ${cacheTypeK}`, 'info');
             logMessage('系統', `KV Cache Type V: ${cacheTypeV}`, 'info');
             logMessage('系統', `RPC節點: ${rpcNodes.join(', ') || '無'}`, 'info');
+            logMessage('系統', `自動卸載時間: ${idleTimeout === 0 ? '已停用' : idleTimeout + ' 分鐘'}`, 'info');
+            logMessage('系統', `即時模型加載: ${autoLoadEnabled ? '啟用' : '停用'}`, 'info');
+            logMessage('系統', `限制單一模型: ${restrictSingleModel ? '啟用' : '停用'}`, 'info');
+            if (cudaDeviceId) logMessage('系統', `GPU 裝置: ${cudaDeviceId}`, 'info');
+            if (cpuThreads > 0) logMessage('系統', `CPU 執行緒數: ${cpuThreads}`, 'info');
+            logMessage('系統', `記憶體上限限制: ${maxMemoryLimit === 0 ? '無限制' : maxMemoryLimit + ' GB'}`, 'info');
             logMessage('系統', `本機作為API伺服器參與計算`, 'info');
         } else {
             logMessage('系統', result.message, 'error');
@@ -593,32 +747,175 @@ async function stopApiServer() {
 }
 
 // 同步滑動條和輸入框
+// ==================== 模型專屬設定儲存/載入 ====================
+
+function saveCurrentModelSettings() {
+    const modelName = elements.modelSelect.value;
+    if (!modelName) return;
+    
+    const isRememberChecked = elements.rememberModelSettings.checked;
+    if (!isRememberChecked) {
+        localStorage.removeItem(`model_settings_${modelName}`);
+        return;
+    }
+    
+    const settings = {
+        ngl: parseInt(elements.gpuLayers.value) || 0,
+        ctxSize: parseInt(elements.contextSize.value) || 2048,
+        np: parseInt(elements.parallelRequests.value) || 1,
+        flashAttention: elements.flashAttention.checked,
+        cacheTypeK: elements.cacheTypeK.value,
+        cacheTypeV: elements.cacheTypeV.value,
+        specEnabled: elements.specEnabled.checked,
+        draftModel: elements.draftModelSelect.value,
+        draftNgl: parseInt(elements.draftGpuLayers.value) || 0,
+        draftMax: parseInt(elements.draftMax.value) || 16,
+        draftMin: parseInt(elements.draftMin.value) || 0,
+        draftPMin: parseFloat(elements.draftPMin.value) || 0.75,
+        idleTimeout: parseInt(elements.idleTimeout.value) === 0 ? 0 : (parseInt(elements.idleTimeout.value) || 5),
+        maxMemoryLimit: parseInt(elements.maxMemoryLimit.value) || 0,
+        restrictSingleModel: elements.restrictSingleModel.checked,
+        cudaDeviceId: elements.cudaDeviceId.value || '',
+        cpuThreads: parseInt(elements.cpuThreads.value) || 0,
+        remember: true
+    };
+    
+    localStorage.setItem(`model_settings_${modelName}`, JSON.stringify(settings));
+    console.log(`Saved settings for model: ${modelName}`, settings);
+}
+
+function loadSettingsForModel(modelName) {
+    if (!modelName) {
+        elements.rememberModelSettings.checked = false;
+        return;
+    }
+    
+    const saved = localStorage.getItem(`model_settings_${modelName}`);
+    if (!saved) {
+        elements.rememberModelSettings.checked = false;
+        // 重置為預設設定
+        elements.restrictSingleModel.checked = false;
+        elements.cudaDeviceId.value = '';
+        elements.cpuThreads.value = 0;
+        elements.threadsSlider.value = 0;
+        return;
+    }
+    
+    try {
+        const settings = JSON.parse(saved);
+        
+        // 還原設定值到 UI
+        if (settings.ngl !== undefined) {
+            elements.gpuLayers.value = settings.ngl;
+            elements.gpuSlider.value = Math.min(settings.ngl, 200);
+        }
+        if (settings.ctxSize !== undefined) {
+            elements.contextSize.value = settings.ctxSize;
+            elements.contextSlider.value = Math.min(settings.ctxSize, 131072);
+        }
+        if (settings.np !== undefined) {
+            elements.parallelRequests.value = settings.np;
+            elements.parallelSlider.value = Math.min(settings.np, 100);
+        }
+        if (settings.flashAttention !== undefined) {
+            elements.flashAttention.checked = settings.flashAttention;
+        }
+        if (settings.cacheTypeK !== undefined) {
+            elements.cacheTypeK.value = settings.cacheTypeK;
+            createCustomSelect('cache-type-k');
+        }
+        if (settings.cacheTypeV !== undefined) {
+            elements.cacheTypeV.value = settings.cacheTypeV;
+            createCustomSelect('cache-type-v');
+        }
+        if (settings.specEnabled !== undefined) {
+            elements.specEnabled.checked = settings.specEnabled;
+            elements.specOptions.style.display = settings.specEnabled ? 'block' : 'none';
+        }
+        if (settings.draftModel !== undefined) {
+            elements.draftModelSelect.value = settings.draftModel;
+            createCustomSelect('draft-model-select');
+        }
+        if (settings.draftNgl !== undefined) {
+            elements.draftGpuLayers.value = settings.draftNgl;
+            elements.draftGpuSlider.value = Math.min(settings.draftNgl, 200);
+        }
+        if (settings.draftMax !== undefined) {
+            elements.draftMax.value = settings.draftMax;
+            elements.draftMaxSlider.value = Math.min(settings.draftMax, 64);
+        }
+        if (settings.draftMin !== undefined) {
+            elements.draftMin.value = settings.draftMin;
+            elements.draftMinSlider.value = Math.min(settings.draftMin, 32);
+        }
+        if (settings.draftPMin !== undefined) {
+            elements.draftPMin.value = settings.draftPMin;
+            elements.draftPMinSlider.value = Math.round(settings.draftPMin * 100);
+        }
+        if (settings.idleTimeout !== undefined) {
+            elements.idleTimeout.value = settings.idleTimeout;
+            elements.idleTimeoutSlider.value = Math.min(settings.idleTimeout, 60);
+        }
+        if (settings.maxMemoryLimit !== undefined) {
+            elements.maxMemoryLimit.value = settings.maxMemoryLimit;
+            elements.maxMemorySlider.value = Math.min(settings.maxMemoryLimit, 64);
+        }
+        if (settings.restrictSingleModel !== undefined) {
+            elements.restrictSingleModel.checked = settings.restrictSingleModel;
+        }
+        if (settings.cudaDeviceId !== undefined) {
+            elements.cudaDeviceId.value = settings.cudaDeviceId;
+        }
+        if (settings.cpuThreads !== undefined) {
+            elements.cpuThreads.value = settings.cpuThreads;
+            elements.threadsSlider.value = Math.min(settings.cpuThreads, 64);
+        }
+        
+        elements.rememberModelSettings.checked = true;
+        console.log(`Loaded settings for model: ${modelName}`, settings);
+    } catch (e) {
+        console.error(`Failed to parse saved settings for model: ${modelName}`, e);
+        elements.rememberModelSettings.checked = false;
+    }
+}
+
+function saveIfRememberChecked() {
+    if (elements.rememberModelSettings && elements.rememberModelSettings.checked) {
+        saveCurrentModelSettings();
+    }
+}
+
 function syncGpuControls() {
     // GPU 層數控制
     elements.gpuSlider.addEventListener('input', (e) => {
         elements.gpuLayers.value = e.target.value;
+        saveIfRememberChecked();
     });
     
     elements.gpuLayers.addEventListener('input', (e) => {
         const value = Math.max(0, parseInt(e.target.value) || 0);
         elements.gpuLayers.value = value;
         elements.gpuSlider.value = Math.min(value, 200); // 滑動條最大值限制為200，但輸入框無限制
+        saveIfRememberChecked();
     });
     
     // 並行請求數控制
     elements.parallelSlider.addEventListener('input', (e) => {
         elements.parallelRequests.value = e.target.value;
+        saveIfRememberChecked();
     });
     
     elements.parallelRequests.addEventListener('input', (e) => {
         const value = Math.max(1, parseInt(e.target.value) || 1);
         elements.parallelRequests.value = value;
         elements.parallelSlider.value = Math.min(value, 100); // 滑動條最大值限制為100，但輸入框無限制
+        saveIfRememberChecked();
     });
     
     // Context Size 控制
     elements.contextSlider.addEventListener('input', (e) => {
         elements.contextSize.value = e.target.value;
+        saveIfRememberChecked();
     });
     
     elements.contextSize.addEventListener('input', (e) => {
@@ -627,53 +924,141 @@ function syncGpuControls() {
         const roundedValue = Math.round(value / 512) * 512;
         elements.contextSize.value = roundedValue;
         elements.contextSlider.value = Math.min(roundedValue, 131072); // 滑動條最大值限制為128K，但輸入框無限制
+        saveIfRememberChecked();
+    });
+
+    // 模型自動卸載時間控制
+    const savedTimeout = localStorage.getItem('idleTimeout');
+    if (savedTimeout !== null) {
+        elements.idleTimeout.value = savedTimeout;
+        elements.idleTimeoutSlider.value = Math.min(parseInt(savedTimeout) || 5, 60);
+    } else {
+        elements.idleTimeout.value = '5';
+        elements.idleTimeoutSlider.value = 5;
+    }
+
+    elements.idleTimeoutSlider.addEventListener('input', (e) => {
+        elements.idleTimeout.value = e.target.value;
+        localStorage.setItem('idleTimeout', e.target.value);
+        saveIfRememberChecked();
+    });
+    
+    elements.idleTimeout.addEventListener('input', (e) => {
+        const value = Math.max(0, parseInt(e.target.value) || 0);
+        elements.idleTimeout.value = value;
+        elements.idleTimeoutSlider.value = Math.min(value, 60);
+        localStorage.setItem('idleTimeout', value.toString());
+        saveIfRememberChecked();
+    });
+
+    // 記憶體上限限制控制
+    const savedMaxMem = localStorage.getItem('maxMemoryLimit');
+    if (savedMaxMem !== null) {
+        elements.maxMemoryLimit.value = savedMaxMem;
+        elements.maxMemorySlider.value = Math.min(parseInt(savedMaxMem) || 0, 64);
+    } else {
+        elements.maxMemoryLimit.value = '0';
+        elements.maxMemorySlider.value = 0;
+    }
+
+    elements.maxMemorySlider.addEventListener('input', (e) => {
+        elements.maxMemoryLimit.value = e.target.value;
+        localStorage.setItem('maxMemoryLimit', e.target.value);
+        saveIfRememberChecked();
+    });
+
+    elements.maxMemoryLimit.addEventListener('input', (e) => {
+        const value = Math.max(0, parseInt(e.target.value) || 0);
+        elements.maxMemoryLimit.value = value;
+        elements.maxMemorySlider.value = Math.min(value, 64);
+        localStorage.setItem('maxMemoryLimit', value.toString());
+        saveIfRememberChecked();
+    });
+
+    // 即時加載控制
+    const savedAutoLoad = localStorage.getItem('autoLoadEnabled');
+    if (savedAutoLoad !== null) {
+        elements.autoLoadToggle.checked = savedAutoLoad === 'true';
+    } else {
+        elements.autoLoadToggle.checked = true;
+    }
+
+    elements.autoLoadToggle.addEventListener('change', (e) => {
+        localStorage.setItem('autoLoadEnabled', e.target.checked.toString());
     });
     
     // Speculative Decoding 開關
     elements.specEnabled.addEventListener('change', (e) => {
         elements.specOptions.style.display = e.target.checked ? 'block' : 'none';
+        saveIfRememberChecked();
     });
 
     // Draft GPU 層數控制
     elements.draftGpuSlider.addEventListener('input', (e) => {
         elements.draftGpuLayers.value = e.target.value;
+        saveIfRememberChecked();
     });
     elements.draftGpuLayers.addEventListener('input', (e) => {
         const value = Math.max(0, parseInt(e.target.value) || 0);
         elements.draftGpuLayers.value = value;
         elements.draftGpuSlider.value = Math.min(value, 200);
+        saveIfRememberChecked();
     });
 
     // Draft Max 控制
     elements.draftMaxSlider.addEventListener('input', (e) => {
         elements.draftMax.value = e.target.value;
+        saveIfRememberChecked();
     });
     elements.draftMax.addEventListener('input', (e) => {
         const value = Math.max(1, parseInt(e.target.value) || 16);
         elements.draftMax.value = value;
         elements.draftMaxSlider.value = Math.min(value, 64);
+        saveIfRememberChecked();
     });
 
     // Draft Min 控制
     elements.draftMinSlider.addEventListener('input', (e) => {
         elements.draftMin.value = e.target.value;
+        saveIfRememberChecked();
     });
     elements.draftMin.addEventListener('input', (e) => {
         const value = Math.max(0, parseInt(e.target.value) || 0);
         elements.draftMin.value = value;
         elements.draftMinSlider.value = Math.min(value, 32);
+        saveIfRememberChecked();
     });
 
     // Draft P-Min 控制
     elements.draftPMinSlider.addEventListener('input', (e) => {
         elements.draftPMin.value = (e.target.value / 100).toFixed(2);
+        saveIfRememberChecked();
     });
     elements.draftPMin.addEventListener('input', (e) => {
         let value = parseFloat(e.target.value) || 0.75;
         value = Math.max(0, Math.min(1, value));
         elements.draftPMin.value = value;
         elements.draftPMinSlider.value = Math.round(value * 100);
+        saveIfRememberChecked();
     });
+
+    elements.draftModelSelect.addEventListener('change', () => saveIfRememberChecked());
+
+    // CPU 執行緒控制
+    elements.threadsSlider.addEventListener('input', (e) => {
+        elements.cpuThreads.value = e.target.value;
+        saveIfRememberChecked();
+    });
+    elements.cpuThreads.addEventListener('input', (e) => {
+        const value = Math.max(0, parseInt(e.target.value) || 0);
+        elements.cpuThreads.value = value;
+        elements.threadsSlider.value = Math.min(value, 64);
+        saveIfRememberChecked();
+    });
+
+    // 限制單一模型與 GPU 裝置變更事件
+    elements.restrictSingleModel.addEventListener('change', () => saveIfRememberChecked());
+    elements.cudaDeviceId.addEventListener('input', () => saveIfRememberChecked());
 }
 
 // 設定進階設定摺疊功能
@@ -944,6 +1329,34 @@ function setupEventListeners() {
     // 主操作按鈕
     elements.mainActionBtn.addEventListener('click', toggleApiServer);
     
+    // 卸載模型按鈕
+    elements.unloadModelBtn.addEventListener('click', async () => {
+        if (!currentlyActiveModel) return;
+        try {
+            updateMainActionButton('loading');
+            const result = await window.electronAPI.unloadModel();
+            if (result.success) {
+                logMessage('系統', result.message, 'success');
+            } else {
+                logMessage('系統', result.message, 'error');
+            }
+        } catch (error) {
+            logMessage('系統', `卸載模型失敗: ${error.message}`, 'error');
+        } finally {
+            updateMainActionButton(apiServerRunning ? 'stop' : 'start');
+        }
+    });
+    
+    // 記住此模型的設定勾選變更
+    elements.rememberModelSettings.addEventListener('change', () => {
+        saveCurrentModelSettings();
+    });
+
+    // 模型選擇變更事件 (載入該模型的專屬設定)
+    elements.modelSelect.addEventListener('change', (e) => {
+        loadSettingsForModel(e.target.value);
+    });
+    
     // 主題切換按鈕
     elements.themeToggle.addEventListener('click', toggleTheme);
     
@@ -1080,17 +1493,47 @@ function setupEventListeners() {
         }
     });
     
-    window.electronAPI.onApiServerStatus((event, running) => {
+    window.electronAPI.onApiServerStatus((event, status) => {
+        let running = false;
+        let statusMessage = '';
+        let loadedModel = null;
+        if (status && typeof status === 'object') {
+            running = status.running;
+            statusMessage = status.message || '';
+            loadedModel = status.loadedModel || null;
+        } else {
+            running = !!status;
+        }
+        
         apiServerRunning = running;
         const apiStatusText = elements.apiStatus.nextElementSibling;
         updateStatusIndicator(elements.apiStatus, apiStatusText, running);
+        
+        if (running && statusMessage) {
+            apiStatusText.textContent = statusMessage;
+        }
+        
+        // 更新當前已載入模型 UI 狀態
+        const prevActiveModel = currentlyActiveModel;
+        if (running && loadedModel) {
+            currentlyActiveModel = loadedModel;
+            elements.loadedModelName.textContent = loadedModel;
+            elements.loadedModelInfo.style.display = 'block';
+        } else {
+            currentlyActiveModel = null;
+            elements.loadedModelInfo.style.display = 'none';
+        }
+        
+        // 若載入的模型發生變化，重新建立選單以套用高亮樣式
+        if (prevActiveModel !== currentlyActiveModel) {
+            createCustomSelect('model-select');
+        }
         
         if (running) {
             updateMainActionButton('stop');
             elements.apiUrl.textContent = 'http://localhost:8080';
             elements.apiUrl.style.cursor = 'pointer';
             elements.apiUrl.onclick = () => window.open('http://localhost:8080');
-            logMessage('API', 'API 伺服器已啟動，可在 http://localhost:8080 存取', 'success');
         } else {
             updateMainActionButton('start');
             elements.apiUrl.textContent = 'N/A';
@@ -1180,6 +1623,7 @@ function setupEventListeners() {
         elements.updateCurrentVersion.textContent = '載入中...';
         elements.updateLatestVersion.textContent = '載入中...';
         elements.updateVariantSelect.innerHTML = '<option value="">載入中...</option>';
+        createCustomSelect('update-variant-select');
         elements.updateProgressSection.style.display = 'none';
         elements.startUpdateBtn.disabled = true;
 
@@ -1200,9 +1644,11 @@ function setupEventListeners() {
                         if (asset.isDefault) option.selected = true;
                         elements.updateVariantSelect.appendChild(option);
                     });
+                    createCustomSelect('update-variant-select');
                     elements.startUpdateBtn.disabled = false;
                 } else {
                     elements.updateVariantSelect.innerHTML = '<option value="">無可用更新</option>';
+                    createCustomSelect('update-variant-select');
                 }
             } else {
                 elements.updateCurrentVersion.textContent = '錯誤';

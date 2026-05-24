@@ -138,7 +138,7 @@ jobs:
         
     - name: Generate Release Notes
       run: |
-        cat << 'EOF' > generate_notes.js
+        cat << 'EOF' > generate_notes.cjs
         const fs = require("fs");
         const changelogPath = "CHANGELOG.md";
         const rawVersion = process.argv[2];
@@ -180,7 +180,7 @@ jobs:
         
         fs.writeFileSync("release_notes.md", releaseNotes + footer);
         EOF
-        node generate_notes.js "${{ steps.version.outputs.version }}"
+        node generate_notes.cjs "${{ steps.version.outputs.version }}"
 
     - name: Create Release
       uses: softprops/action-gh-release@v1

@@ -1,3 +1,6 @@
+# Git worktrees
+.worktrees/
+
 # Dependencies
 node_modules/
 npm-debug.log*

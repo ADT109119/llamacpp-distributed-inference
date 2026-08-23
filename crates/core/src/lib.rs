@@ -4,6 +4,7 @@ pub mod error;
 pub mod models;
 pub mod paths;
 pub mod process;
+pub mod proxy;
 pub mod rpc;
 pub mod state;
 

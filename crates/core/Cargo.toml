@@ -11,7 +11,8 @@ if-addrs = "0.13"
 axum = "0.7"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-reqwest = { version = "0.12", default-features = false, features = ["json"] }
+# 註：reqwest 0.12 無 `http1` feature（HTTP/1 內建；該 feature 自 0.13 起才存在）
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 hostname = "0.4"
 mdns-sd = "0.11"
 regex = "1"

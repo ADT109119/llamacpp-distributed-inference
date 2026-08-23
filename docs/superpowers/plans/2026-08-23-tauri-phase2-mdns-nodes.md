@@ -788,11 +788,13 @@ git commit -m "test(core): 節點整合測試 — registry 與 mDNS 過濾協作
 
 ## 完成標準（Phase 2 Definition of Done）
 
+> **執行結果備註（2026-08-23）：** 「每 30s 週期補掃」已於實作階段移除（commit 71a41ba）。原因：mdns-sd 每個服務型別僅支援一個 querier（HashMap insert 覆蓋語意），第二個 browse 會使常駐瀏覽的事件流失效，stop_browse 更會清除該型別的所有重傳任務，導致探索在 ~35 秒後靜默死亡。mdns-sd 內建連續重查（退避重傳 + 快取刷新 + RFC 6762 goodbye/TTL 過期事件），已完整涵蓋 bonjour-service 需要 30s 手動補掃的場景。詳見 mdns.rs 模組註解。
+
 - `cargo test --workspace` 全綠；clippy/fmt 乾淨
 - 行為對照表：
   - ✅ filterAndAddNode 六條規則 + 本機映射 127.0.0.1
   - ✅ mDNS publish 參數（名稱/type/port/TXT）
-  - ✅ 常駀 browse up/down + 每 30s 週期補掃
+  - ⚠️ 常駀 browse up/down（週期補掃如上備註移除，由 mdns-sd 內建重查取代）
   - ✅ add-manual-node 四道檢查與訊息文字
   - ✅ check-node-connection 5s 逾時 TCP
   - ✅ get-local-ips 形狀與 fallback

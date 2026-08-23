@@ -2,6 +2,7 @@ pub mod api;
 pub mod backend;
 pub mod config;
 pub mod error;
+pub mod hf;
 pub mod mdns;
 pub mod models;
 pub mod nodes;

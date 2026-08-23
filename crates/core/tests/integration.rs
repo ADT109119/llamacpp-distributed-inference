@@ -80,3 +80,32 @@ fn server_options_from_frontend_payload_shape() {
     assert_eq!(opts.idle_timeout, 5);
     assert!(opts.auto_load_enabled);
 }
+
+#[tokio::test]
+async fn node_registry_with_mdns_filter_integration() {
+    use llama_dist_core::nodes::NodeRegistry;
+
+    let state = CoreState::new(Config::default());
+    let reg = NodeRegistry::new(state.clone());
+    let mut rx = state.subscribe();
+
+    // 模擬 mDNS 回報混合地址
+    reg.add_filtered(&[
+        "valid.remote".to_string(),  // 非法 → 跳過
+        "198.51.100.1".to_string(),  // 有效遠端（TEST-NET-2，避免與執行機器網卡同網段）
+        "169.254.100.7".to_string(), // link-local → 跳過
+        "127.0.0.1".to_string(),     // 本機
+    ])
+    .await;
+
+    let ev = tokio::time::timeout(std::time::Duration::from_secs(2), rx.recv())
+        .await
+        .expect("event within 2s")
+        .expect("channel open");
+    assert!(matches!(ev, llama_dist_core::CoreEvent::NodeUpdate(_)));
+    let list = reg.list().await;
+    assert_eq!(
+        list,
+        vec!["127.0.0.1".to_string(), "198.51.100.1".to_string()]
+    );
+}

@@ -104,6 +104,9 @@ pub struct ProxyServer {
     state: Arc<CoreState>,
     backend: Arc<BackendManager>,
     idle_notify: Arc<tokio::sync::Notify>,
+    models_dir: PathBuf,
+    /// 模型清單快照（run() 時掃描；refresh_models 可隨時重掃）
+    models: Arc<tokio::sync::RwLock<Vec<String>>>,
 }
 
 impl ProxyServer {
@@ -111,8 +114,15 @@ impl ProxyServer {
         state: Arc<CoreState>,
         backend: Arc<BackendManager>,
         idle_notify: Arc<tokio::sync::Notify>,
+        models_dir: PathBuf,
     ) -> Arc<Self> {
-        Arc::new(Self { state, backend, idle_notify })
+        Arc::new(Self {
+            state,
+            backend,
+            idle_notify,
+            models_dir,
+            models: Arc::new(tokio::sync::RwLock::new(Vec::new())),
+        })
     }
 
     /// 啟動並監聽 0.0.0.0:8080；shutdown receiver 收到 true 後 graceful 結束。
@@ -120,16 +130,14 @@ impl ProxyServer {
         self: Arc<Self>,
         shutdown: tokio::sync::watch::Receiver<bool>,
         options: ServerOptions,
-        models_dir: PathBuf,
     ) -> Result<(), String> {
-        let models = crate::models::scan_or_init_models_dir(&models_dir)
+        let models = crate::models::scan_or_init_models_dir(&self.models_dir)
             .map_err(|e| e.to_string())?;
+        *self.models.write().await = models;
 
         let ctx = ProxyCtx {
             me: self.clone(),
             options: Arc::new(tokio::sync::RwLock::new(options)),
-            models: Arc::new(tokio::sync::RwLock::new(models)),
-            models_dir,
         };
 
         let router = axum::Router::new().fallback(handle_all).with_state(ctx);
@@ -154,6 +162,23 @@ impl ProxyServer {
         Ok(())
     }
 
+    /// 重新掃描模型資料夾並更新快照（下載模型後或手動重掃時呼叫）
+    pub async fn refresh_models(&self) {
+        match crate::models::scan_or_init_models_dir(&self.models_dir) {
+            Ok(list) => *self.models.write().await = list,
+            Err(e) => {
+                self.state.emit(CoreEvent::ApiServerLog(format!(
+                    "[系統] 掃描模型資料夾失敗: {e}\n"
+                )));
+            }
+        }
+    }
+
+    /// 目前模型清單快照
+    pub async fn available_models(&self) -> Vec<String> {
+        self.models.read().await.clone()
+    }
+
     /// 閒置計時重置：每次請求呼叫一次
     pub(crate) fn touch_idle(&self) {
         self.idle_notify.notify_one();
@@ -164,8 +189,6 @@ impl ProxyServer {
 struct ProxyCtx {
     me: Arc<ProxyServer>,
     options: Arc<tokio::sync::RwLock<ServerOptions>>,
-    models: Arc<tokio::sync::RwLock<Vec<String>>>,
-    models_dir: PathBuf,
 }
 
 async fn handle_all(State(ctx): State<ProxyCtx>, req: Request) -> Response {
@@ -194,7 +217,7 @@ async fn handle_all(State(ctx): State<ProxyCtx>, req: Request) -> Response {
 
     let active = ctx.me.backend.active_model().await;
     let opts = ctx.options.read().await.clone();
-    let available = ctx.models.read().await.clone();
+    let available = ctx.me.models.read().await.clone();
 
     let target =
         match resolve_target(requested.as_deref(), active.as_deref(), Some(&opts), &available) {
@@ -204,7 +227,7 @@ async fn handle_all(State(ctx): State<ProxyCtx>, req: Request) -> Response {
 
     if let Some(t) = target {
         if Some(&t) != active.as_ref() {
-            let models_dir = ctx.models_dir.clone();
+            let models_dir = ctx.me.models_dir.clone();
             let size_of = move |name: &str| -> Option<u64> {
                 std::fs::metadata(models_dir.join(name)).ok().map(|m| m.len())
             };
@@ -370,5 +393,29 @@ mod tests {
         let err = check_switch("B-Q4.gguf", None, &o, &size_of).unwrap_err();
         assert_eq!(err.code, "memory_limit_exceeded");
         assert_eq!(err.status, 400);
+    }
+
+    #[tokio::test]
+    async fn refresh_models_updates_snapshot() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("M-Q4.gguf"), b"x").unwrap();
+        std::fs::write(tmp.path().join("README.md"), b"").unwrap();
+
+        let state = crate::state::CoreState::new_for_test();
+        let backend = crate::backend::BackendManager::new(
+            state.clone(),
+            PathBuf::from("Z:/nope/llama-server.exe"),
+            tmp.path().to_path_buf(),
+        );
+        let proxy = ProxyServer::new(
+            state,
+            backend,
+            Arc::new(tokio::sync::Notify::new()),
+            tmp.path().to_path_buf(),
+        );
+
+        assert!(proxy.available_models().await.is_empty());
+        proxy.refresh_models().await;
+        assert_eq!(proxy.available_models().await, vec!["M-Q4.gguf".to_string()]);
     }
 }

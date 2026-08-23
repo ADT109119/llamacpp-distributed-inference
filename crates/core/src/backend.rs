@@ -222,7 +222,11 @@ impl BackendManager {
         }
     }
 
-    /// 載入模型（含切換：先停舊、等 1 秒、再起新）——對齊 loadModelBackend
+    /// 載入模型（含切換：先停舊、等 1 秒、再起新）——對齊 loadModelBackend。
+    ///
+    /// # Concurrency
+    /// 此方法內部**未**序列化：並行呼叫可能導致連埠衝突或孤兒進程。
+    /// 呼叫端（ApiManager / Tauri commands）必須自行確保同一時間只有一個載入流程。
     pub async fn load_model(&self, model_name: &str, opts: &ServerOptions) -> Result<(), String> {
         use crate::models::{check_memory, MemoryLimits};
 
@@ -241,9 +245,14 @@ impl BackendManager {
             .await
             .and_then(|m| std::fs::metadata(self.models_dir.join(&m)).ok())
             .map(|m| m.len());
-        let (limits_total, limits_free) = match (sys_total_mem(), sys_free_mem()) {
-            (Some(t), Some(f)) => (t, f),
-            _ => return Err("無法取得系統記憶體資訊。".into()),
+        // 查詢可能涉及子進程/檔案 IO，放到 blocking pool 避免卡住 tokio worker
+        let (limits_total, limits_free) = {
+            let total = tokio::task::spawn_blocking(sys_total_mem).await.unwrap_or(None);
+            let free = tokio::task::spawn_blocking(sys_free_mem).await.unwrap_or(None);
+            match (total, free) {
+                (Some(t), Some(f)) => (t, f),
+                _ => return Err("無法取得系統記憶體資訊。".into()),
+            }
         };
         let (warning, _) = check_memory(
             model_size,

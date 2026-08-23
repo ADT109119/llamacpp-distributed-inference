@@ -3,6 +3,7 @@ pub mod backend;
 pub mod config;
 pub mod error;
 pub mod models;
+pub mod nodes;
 pub mod paths;
 pub mod process;
 pub mod proxy;

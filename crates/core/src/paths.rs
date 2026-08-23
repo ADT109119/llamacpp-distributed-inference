@@ -30,14 +30,23 @@ fn dev_root() -> PathBuf {
 }
 
 /// 應用基礎路徑：
-/// - 打包/portable 模式（偵測 exe 同層是否有 bin/）：exe 所在目錄
+/// - 測試/CI 注入（LLAMA_DIST_PORTABLE）：直接採用該路徑
+/// - 打包/portable 模式（偵測 exe 同層是否有 bin/<platform>/llama-server）：exe 所在目錄
 /// - 開發模式：專案根
 pub fn base_path() -> PathBuf {
+    if let Ok(dir) = std::env::var("LLAMA_DIST_PORTABLE") {
+        return PathBuf::from(dir);
+    }
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
-            // portable 判斷：exe 目錄下存在 bin/（NSIS portable 佈局）
-            // 排除 cargo 測試輸出目錄（deps 等）誤判
-            if dir.join("bin").is_dir() && dir.file_name().is_some_and(|n| n != "deps") {
+            // portable 判斷：exe 目錄下存在 bin/<platform>/llama-server
+            // （target/debug 等建置輸出目錄不可能出現此佈局）
+            if dir
+                .join("bin")
+                .join(platform_id())
+                .join(binary_file_name("llama-server"))
+                .exists()
+            {
                 return dir.to_path_buf();
             }
         }
@@ -92,12 +101,23 @@ mod tests {
 
     #[test]
     fn test_dev_base_path_is_project_root() {
-        // 在開發/測試環境下 base_path 應指到專案根
-        let root = base_path();
-        assert!(
-            root.join("src").exists() || root.join(".git").exists() || root.join("crates").exists(),
-            "base_path 應為專案根，實際: {root:?}"
-        );
+        // 測試環境（無 LLAMA_DIST_PORTABLE、exe 在 target/debug/deps）下應回到專案根
+        assert_eq!(base_path(), dev_root());
+        assert!(dev_root().join("crates").join("core").exists());
+    }
+
+    #[test]
+    fn test_portable_env_override() {
+        let tmp = tempfile::tempdir().unwrap();
+        // 建立可攜式佈局：<tmp>/bin/<platform>/llama-server(.exe)
+        let bindir = tmp.path().join("bin").join(platform_id());
+        std::fs::create_dir_all(&bindir).unwrap();
+        std::fs::write(bindir.join(binary_file_name("llama-server")), b"x").unwrap();
+
+        // 設定環境變數後 base_path 應直接採用該路徑
+        std::env::set_var("LLAMA_DIST_PORTABLE", tmp.path());
+        assert_eq!(base_path(), tmp.path());
+        std::env::remove_var("LLAMA_DIST_PORTABLE");
     }
 
     #[test]

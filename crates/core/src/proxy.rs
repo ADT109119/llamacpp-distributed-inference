@@ -82,7 +82,7 @@ pub fn check_switch(
             }
         }
     }
-    if !opts.auto_load_enabled && active.is_none() {
+    if !opts.auto_load_enabled {
         return Err(ApiError {
             status: 400,
             code: "auto_load_disabled",
@@ -393,6 +393,17 @@ mod tests {
         };
         let size_of = |_: &str| -> Option<u64> { None };
         let err = check_switch("B-Q4.gguf", None, &o, &size_of).unwrap_err();
+        assert_eq!(err.code, "auto_load_disabled");
+    }
+
+    #[test]
+    fn switch_autoload_disabled_blocks_switch_even_when_loaded() {
+        let o = ServerOptions {
+            auto_load_enabled: false,
+            ..Default::default()
+        };
+        let size_of = |_: &str| -> Option<u64> { None };
+        let err = check_switch("B-Q4.gguf", Some("A-Q4.gguf"), &o, &size_of).unwrap_err();
         assert_eq!(err.code, "auto_load_disabled");
     }
 

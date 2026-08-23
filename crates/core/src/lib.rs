@@ -1,3 +1,4 @@
+pub mod config;
 pub mod paths;
 
 /// 系統日誌子系統

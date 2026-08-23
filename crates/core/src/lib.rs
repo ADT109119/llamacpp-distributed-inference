@@ -1,5 +1,9 @@
 pub mod config;
+pub mod error;
 pub mod paths;
+pub mod state;
+
+pub use error::ApiError;
 
 /// 系統日誌子系統
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

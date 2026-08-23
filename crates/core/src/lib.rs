@@ -25,4 +25,6 @@ pub enum CoreEvent {
         current_file: String,
         kind: &'static str,
     },
+    /// 系統日誌（node/sys 子系統）
+    Log(Subsystem, String),
 }

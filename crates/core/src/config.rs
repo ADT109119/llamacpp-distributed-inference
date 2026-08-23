@@ -5,6 +5,10 @@ fn default_theme() -> String {
     "light".into()
 }
 
+fn default_llamacpp_version() -> String {
+    "未安裝".into()
+}
+
 /// 啟動 API 伺服器的完整參數（欄位名對齊前端 app.js startApiServer payload）
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -41,6 +45,9 @@ pub struct Config {
     pub models_path: String,
     pub api_key: String,
     pub theme: String,
+    /// 已安裝的 llama.cpp 版本（release tag；「未安裝」表示尚未安裝）
+    #[serde(default = "default_llamacpp_version")]
+    pub llamacpp_version: String,
     pub server_options: Option<ServerOptions>,
 }
 
@@ -50,6 +57,7 @@ impl Default for Config {
             models_path: String::new(),
             api_key: String::new(),
             theme: default_theme(),
+            llamacpp_version: default_llamacpp_version(),
             server_options: None,
         }
     }
@@ -132,5 +140,16 @@ mod tests {
         let path = dir.path().join("config.json");
         std::fs::create_dir(&path).unwrap();
         assert!(Config::load(&path).is_err());
+    }
+
+    #[test]
+    fn test_llamacpp_version_default_and_roundtrip() {
+        let cfg = Config::default();
+        assert_eq!(cfg.llamacpp_version, "未安裝");
+        let json = serde_json::to_value(&cfg).unwrap();
+        assert_eq!(json["llamacppVersion"], "未安裝");
+        // 舊版 config（缺 key）載入後有預設值
+        let back: Config = serde_json::from_str("{}").unwrap();
+        assert_eq!(back.llamacpp_version, "未安裝");
     }
 }

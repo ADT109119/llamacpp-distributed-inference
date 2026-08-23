@@ -59,7 +59,8 @@ impl Config {
     pub fn load(path: &Path) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         match std::fs::read_to_string(path) {
             Ok(text) => Ok(serde_json::from_str(&text)?),
-            Err(_) => Ok(Self::default()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Self::default()),
+            Err(e) => Err(Box::new(e)),
         }
     }
 
@@ -122,5 +123,14 @@ mod tests {
         cfg.save(&path).unwrap();
         let back = Config::load(&path).unwrap();
         assert_eq!(back.api_key, "sk-test");
+    }
+
+    #[test]
+    fn test_load_unreadable_file_errors() {
+        // 建立一個「目錄」當作檔案路徑 → 讀取必失敗（非 NotFound）
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.json");
+        std::fs::create_dir(&path).unwrap();
+        assert!(Config::load(&path).is_err());
     }
 }

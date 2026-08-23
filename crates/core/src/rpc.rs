@@ -43,26 +43,30 @@ impl RpcManager {
         if !self.binary_path.exists() {
             return Err("llama.cpp 尚未安裝".into());
         }
-        {
-            let guard = self.child.lock().await;
+        // 單一鎖範圍：已運行檢查 + spawn + 存放，序列化 start/stop（避免 TOCTOU 與並發雙啟動）
+        let mut rx = {
+            let mut guard = self.child.lock().await;
             if guard.is_some() {
                 // 已在跑：直接回報 running（對齊現行）
                 self.state.emit(CoreEvent::RpcServerStatus(true));
                 return Ok(());
             }
-        }
 
-        let mut child = Command::new(&self.binary_path)
-            .args(args)
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .kill_on_drop(true)
-            .spawn()
-            .map_err(|e| format!("Failed to start rpc-server: {e}"))?;
+            let mut child = Command::new(&self.binary_path)
+                .args(args)
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .kill_on_drop(true)
+                .spawn()
+                .map_err(|e| format!("Failed to start rpc-server: {e}"))?;
 
-        // stdout/stderr 行化 → 事件
-        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<(&'static str, String)>();
-        crate::process::pipe_output(&mut child, tx);
+            // stdout/stderr 行化 → 事件
+            let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<(&'static str, String)>();
+            crate::process::pipe_output(&mut child, tx);
+
+            *guard = Some(child);
+            rx
+        };
 
         {
             let state = self.state.clone();
@@ -77,8 +81,6 @@ impl RpcManager {
             });
         }
 
-        *self.child.lock().await = Some(child);
-
         // 監看任務：自然退出時發 status false（被 stop 走時不重複發）
         let this2 = self.clone();
         tokio::spawn(async move {
@@ -86,14 +88,20 @@ impl RpcManager {
                 let outcome = {
                     let mut g = this2.child.lock().await;
                     match g.as_mut() {
-                        Some(c) => c.try_wait().ok().flatten().map(|_| "exited"),
-                        None => Some("taken"), // 已被 stop take 走
+                        Some(c) => {
+                            if matches!(c.try_wait(), Ok(Some(_))) {
+                                *g = None;
+                                Some("exited")
+                            } else {
+                                None
+                            }
+                        }
+                        None => Some("taken"), // 已被 stop take 走（stop 已發事件）
                     }
                 };
                 match outcome {
-                    Some("taken") => break, // stop() 已發過事件
+                    Some("taken") => break,
                     Some("exited") => {
-                        *this2.child.lock().await = None;
                         this2.state.emit(CoreEvent::RpcServerStatus(false));
                         break;
                     }
@@ -102,11 +110,13 @@ impl RpcManager {
             }
         });
 
-        // 對齊現行：延遲回報 running
-        let state3 = self.state.clone();
+        // 對齊現行：延遲回報 running（若 2 秒內已退出/被停，不發過期 true）
+        let this3 = self.clone();
         tokio::spawn(async move {
-            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-            state3.emit(CoreEvent::RpcServerStatus(true));
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            if this3.is_running().await {
+                this3.state.emit(CoreEvent::RpcServerStatus(true));
+            }
         });
 
         self.state

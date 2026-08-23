@@ -1,3 +1,5 @@
+pub mod paths;
+
 /// 系統日誌子系統
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Subsystem {

@@ -14,7 +14,11 @@ pub struct RpcManager {
 
 impl RpcManager {
     pub fn new(state: Arc<CoreState>, binary_path: PathBuf) -> Arc<Self> {
-        Arc::new(Self { state, binary_path, child: Mutex::new(None) })
+        Arc::new(Self {
+            state,
+            binary_path,
+            child: Mutex::new(None),
+        })
     }
 
     /// 生產環境建構：自動解析 bin 路徑
@@ -32,7 +36,8 @@ impl RpcManager {
 
     /// 未安裝（binary 不存在）→ Err，呼叫端不啟動
     pub async fn start(self: &Arc<Self>) -> Result<(), String> {
-        self.start_with_args(["-H", "0.0.0.0", "-p", "50052", "-c"]).await
+        self.start_with_args(["-H", "0.0.0.0", "-p", "50052", "-c"])
+            .await
     }
 
     pub async fn start_with_args<I, S>(self: &Arc<Self>, args: I) -> Result<(), String>
@@ -119,8 +124,10 @@ impl RpcManager {
             }
         });
 
-        self.state
-            .emit(CoreEvent::Log(crate::Subsystem::Sys, "RPC 伺服器已啟動".into()));
+        self.state.emit(CoreEvent::Log(
+            crate::Subsystem::Sys,
+            "RPC 伺服器已啟動".into(),
+        ));
         Ok(())
     }
 
@@ -174,7 +181,9 @@ mod tests {
             state,
             std::path::PathBuf::from("C:\\Windows\\System32\\ping.exe"),
         );
-        mgr.start_with_args(["-n", "30", "127.0.0.1"]).await.unwrap();
+        mgr.start_with_args(["-n", "30", "127.0.0.1"])
+            .await
+            .unwrap();
         assert!(mgr.is_running().await);
         mgr.stop().await;
         tokio::time::sleep(Duration::from_millis(500)).await;

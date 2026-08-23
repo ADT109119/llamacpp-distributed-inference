@@ -83,7 +83,10 @@ pub fn build_backend_args(
 /// 找尋自 start 起的第一個空閒埠（對齊 getFreePort）
 pub async fn get_free_port(start: u16) -> u16 {
     for port in start..start.saturating_add(500) {
-        if tokio::net::TcpListener::bind(("127.0.0.1", port)).await.is_ok() {
+        if tokio::net::TcpListener::bind(("127.0.0.1", port))
+            .await
+            .is_ok()
+        {
             return port;
         }
     }
@@ -237,7 +240,9 @@ impl BackendManager {
         if !model_path.exists() {
             return Err(format!("找不到模型檔案: {model_name}"));
         }
-        let model_size = std::fs::metadata(&model_path).map_err(|e| e.to_string())?.len();
+        let model_size = std::fs::metadata(&model_path)
+            .map_err(|e| e.to_string())?
+            .len();
 
         // 記憶體硬性檢查
         let running_size = self
@@ -247,8 +252,12 @@ impl BackendManager {
             .map(|m| m.len());
         // 查詢可能涉及子進程/檔案 IO，放到 blocking pool 避免卡住 tokio worker
         let (limits_total, limits_free) = {
-            let total = tokio::task::spawn_blocking(sys_total_mem).await.unwrap_or(None);
-            let free = tokio::task::spawn_blocking(sys_free_mem).await.unwrap_or(None);
+            let total = tokio::task::spawn_blocking(sys_total_mem)
+                .await
+                .unwrap_or(None);
+            let free = tokio::task::spawn_blocking(sys_free_mem)
+                .await
+                .unwrap_or(None);
             match (total, free) {
                 (Some(t), Some(f)) => (t, f),
                 _ => return Err("無法取得系統記憶體資訊。".into()),
@@ -346,8 +355,6 @@ impl BackendManager {
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -379,13 +386,39 @@ mod tests {
     fn test_args_full() {
         let args = build_backend_args("/models/qwen.gguf", 8081, "/models/draft-q4.gguf", &opts());
         let expect: Vec<String> = [
-            "-m", "/models/qwen.gguf", "--host", "127.0.0.1", "--port", "8081",
-            "--api-key", "sk-1",
-            "--rpc", "192.168.1.10:50052",
-            "-ngl", "33", "-np", "4", "--ctx-size", "8192",
-            "-fa", "-ctk", "q8_0", "-t", "8", "--device", "0",
-            "-md", "/models/draft-q4.gguf", "-ngld", "99",
-            "--draft-max", "16", "--draft-min", "5", "--draft-p-min", "0.8",
+            "-m",
+            "/models/qwen.gguf",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "8081",
+            "--api-key",
+            "sk-1",
+            "--rpc",
+            "192.168.1.10:50052",
+            "-ngl",
+            "33",
+            "-np",
+            "4",
+            "--ctx-size",
+            "8192",
+            "-fa",
+            "-ctk",
+            "q8_0",
+            "-t",
+            "8",
+            "--device",
+            "0",
+            "-md",
+            "/models/draft-q4.gguf",
+            "-ngld",
+            "99",
+            "--draft-max",
+            "16",
+            "--draft-min",
+            "5",
+            "--draft-p-min",
+            "0.8",
         ]
         .iter()
         .map(|s| s.to_string())

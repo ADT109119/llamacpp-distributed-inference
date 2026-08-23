@@ -79,14 +79,16 @@ pub fn check_memory(
         if model_size > limit_bytes {
             return Err(format!(
                 "模型大小 ({:.2} GB) 超出設定的記憶體上限限制 ({}) GB。",
-                model_size as f64 / GB as f64, limits.max_limit_gb
+                model_size as f64 / GB as f64,
+                limits.max_limit_gb
             ));
         }
     }
     if model_size > limits.total_mem.saturating_sub(SYSTEM_RESERVE) {
         return Err(format!(
             "模型大小 ({:.2} GB) 超出系統總記憶體限制 ({:.2} GB)。",
-            model_size as f64 / GB as f64, limits.total_mem as f64 / GB as f64
+            model_size as f64 / GB as f64,
+            limits.total_mem as f64 / GB as f64
         ));
     }
     let predicted_free = limits.free_mem + running_model_size;

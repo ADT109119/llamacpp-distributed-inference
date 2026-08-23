@@ -6,7 +6,7 @@ use crate::CoreEvent;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{Mutex, Notify, watch};
+use tokio::sync::{watch, Mutex, Notify};
 
 /// 閒置逾時秒數（分鐘 → Duration；0 = 停用回 None）
 pub fn idle_duration(minutes: u32) -> Option<Duration> {

@@ -123,6 +123,9 @@ mod tests {
     #[test]
     fn test_bin_dir_shape() {
         let bd = bin_dir();
-        assert!(bd.to_string_lossy().replace('\\', "/").ends_with(&format!("bin/{}", platform_id())));
+        assert!(bd
+            .to_string_lossy()
+            .replace('\\', "/")
+            .ends_with(&format!("bin/{}", platform_id())));
     }
 }

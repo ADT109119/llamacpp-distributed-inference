@@ -1,7 +1,7 @@
 use crate::config::Config;
 use crate::CoreEvent;
 use std::sync::Arc;
-use tokio::sync::{Mutex, broadcast};
+use tokio::sync::{broadcast, Mutex};
 
 /// 核心共享狀態：事件匯流排 + 設定。
 pub struct CoreState {

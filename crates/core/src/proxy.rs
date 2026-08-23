@@ -53,7 +53,9 @@ pub fn check_switch(
         return Ok(());
     }
     if opts.restrict_single_model {
-        let locked = active.map(String::from).unwrap_or_else(|| opts.model_name.clone());
+        let locked = active
+            .map(String::from)
+            .unwrap_or_else(|| opts.model_name.clone());
         if !locked.is_empty() && target != locked {
             return Err(ApiError {
                 status: 400,
@@ -84,7 +86,9 @@ pub fn check_switch(
         return Err(ApiError {
             status: 400,
             code: "auto_load_disabled",
-            message: format!("即時模型載入 (On-demand loading) 已停用。請在主面板選擇模型\"{target}\"。"),
+            message: format!(
+                "即時模型載入 (On-demand loading) 已停用。請在主面板選擇模型\"{target}\"。"
+            ),
         });
     }
     Ok(())
@@ -131,8 +135,8 @@ impl ProxyServer {
         shutdown: tokio::sync::watch::Receiver<bool>,
         options: ServerOptions,
     ) -> Result<(), String> {
-        let models = crate::models::scan_or_init_models_dir(&self.models_dir)
-            .map_err(|e| e.to_string())?;
+        let models =
+            crate::models::scan_or_init_models_dir(&self.models_dir).map_err(|e| e.to_string())?;
         *self.models.write().await = models;
 
         let ctx = ProxyCtx {
@@ -219,17 +223,23 @@ async fn handle_all(State(ctx): State<ProxyCtx>, req: Request) -> Response {
     let opts = ctx.options.read().await.clone();
     let available = ctx.me.models.read().await.clone();
 
-    let target =
-        match resolve_target(requested.as_deref(), active.as_deref(), Some(&opts), &available) {
-            Ok(t) => t,
-            Err(e) => return error_response(&e),
-        };
+    let target = match resolve_target(
+        requested.as_deref(),
+        active.as_deref(),
+        Some(&opts),
+        &available,
+    ) {
+        Ok(t) => t,
+        Err(e) => return error_response(&e),
+    };
 
     if let Some(t) = target {
         if Some(&t) != active.as_ref() {
             let models_dir = ctx.me.models_dir.clone();
             let size_of = move |name: &str| -> Option<u64> {
-                std::fs::metadata(models_dir.join(name)).ok().map(|m| m.len())
+                std::fs::metadata(models_dir.join(name))
+                    .ok()
+                    .map(|m| m.len())
             };
             if let Err(e) = check_switch(&t, active.as_deref(), &opts, &size_of) {
                 return error_response(&e);
@@ -338,7 +348,10 @@ mod tests {
 
     #[test]
     fn resolve_falls_back_to_options_model() {
-        let o = ServerOptions { model_name: "A-Q4.gguf".into(), ..Default::default() };
+        let o = ServerOptions {
+            model_name: "A-Q4.gguf".into(),
+            ..Default::default()
+        };
         let t = resolve_target(None, None, Some(&o), &files());
         assert_eq!(t.unwrap(), Some("A-Q4.gguf".into()));
     }
@@ -416,6 +429,9 @@ mod tests {
 
         assert!(proxy.available_models().await.is_empty());
         proxy.refresh_models().await;
-        assert_eq!(proxy.available_models().await, vec!["M-Q4.gguf".to_string()]);
+        assert_eq!(
+            proxy.available_models().await,
+            vec!["M-Q4.gguf".to_string()]
+        );
     }
 }

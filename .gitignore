@@ -123,3 +123,6 @@ dist_electron/
 
 # Local configuration
 config.local.json
+
+# Rust
+target/
